@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Moji Slots</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: #0f172a;
+            color: #e2e8f0;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior: none;
+        }
+
+        /* Скрываем полосу прокрутки для красоты, но оставляем функционал */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Стили для панелей */
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(12px);
+        }
+
+        /* Анимация страниц */
+        .page-view {
+            display: none;
+            animation: fadeIn 0.3s ease-out;
+            padding-bottom: 120px; /* Большой отступ снизу, чтобы меню не перекрывало контент */
+        }
+        .page-view.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Карточка игры */
+        .game-card {
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative; overflow: hidden;
+        }
+        .game-card:active { transform: scale(0.96); }
+        .game-card::after {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.8) 100%); z-index: 1;
+        }
+        .shiny-effect::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 50%; height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.2), transparent);
+            transform: skewX(-15deg); z-index: 10;
+            animation: shine 3s infinite; pointer-events: none;
+        }
+        @keyframes shine { 0% { transform: translateX(-100%) skewX(-15deg); } 100% { transform: translateX(200%) skewX(-15deg); } }
+
+        /* Нижняя навигация */
+        .bottom-nav-item {
+            color: #64748b; transition: color 0.2s;
+            flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+        }
+        .bottom-nav-item.active-nav { color: #facc15; }
+
+        /* Тоггл */
+        .toggle-checkbox:checked { right: 0; border-color: #22c55e; }
+        .toggle-checkbox:checked + .toggle-label { background-color: #22c55e; }
+    </style>
+</head>
+<!-- ВАЖНО: h-screen вместо min-h-screen фиксирует высоту, позволяя скроллиться main -->
+<body class="w-full h-screen bg-gradient-to-b from-[#1a0b2e] via-slate-900 to-slate-950 flex flex-col relative overflow-hidden">
+
+    <!-- ФОН -->
+    <div class="fixed top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-purple-600/20 rounded-full blur-[80px] pointer-events-none transform-gpu"></div>
+    <div class="fixed bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-yellow-600/10 rounded-full blur-[80px] pointer-events-none transform-gpu"></div>
+
+    <!-- HEADER (Фиксированный, не скроллится) -->
+    <header class="px-4 pt-4 pb-2 flex justify-between items-center z-20 shrink-0">
+        <!-- Avatar & Name -->
+        <div class="flex items-center gap-3 cursor-pointer group" onclick="navigate('profile')">
+            <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-orange-500 p-0.5 shadow-lg shadow-orange-500/20 group-active:scale-95 transition">
+                <div class="w-full h-full rounded-full bg-slate-900 flex items-center justify-center text-xl overflow-hidden relative">
+                   <img id="user-avatar" src="" alt="👤" class="w-full h-full object-cover hidden">
+                   <span id="user-avatar-fallback">😎</span>
+                </div>
+            </div>
+            <div class="leading-tight">
+                <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Игрок</div>
+                <div id="username" class="font-bold text-white text-sm">Guest</div>
+            </div>
+        </div>
+        
+        <!-- Balance Row -->
+        <div class="flex items-center gap-2">
+            <button onclick="toggleWallet(true)" class="w-9 h-9 rounded-full bg-green-600 hover:bg-green-500 text-white font-bold text-xl flex items-center justify-center shadow-lg active:scale-95 transition">
+                +
+            </button>
+            <div class="glass-panel px-3 py-1.5 rounded-full flex items-center gap-2 pr-4" onclick="toggleWallet(true)">
+                <div class="w-6 h-6 rounded-full bg-yellow-500 flex items-center justify-center text-xs shadow-inner text-yellow-900 font-black">$</div>
+                <span id="header-balance" class="font-mono font-bold text-yellow-400 text-lg tracking-tight">0</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- CONTENT CONTAINER (Скроллится только это) -->
+    <main class="flex-1 overflow-y-auto z-10 scroll-smooth relative w-full no-scrollbar">
+
+        <!-- ================= PAGE: HOME ================= -->
+        <div id="view-home" class="page-view active px-4 py-2">
+            
+            <!-- Hero Banner -->
+            <div class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-5 mb-6 shadow-2xl shadow-purple-500/20 relative overflow-hidden shrink-0">
+                <div class="absolute right-[-20px] top-[-20px] text-[8rem] opacity-20 rotate-12">🎰</div>
+                <div class="relative z-10">
+                    <h1 class="text-3xl font-black italic text-white mb-1">Moji <span class="text-yellow-400">Slots</span></h1>
+                    <p class="text-indigo-100 text-xs font-medium max-w-[70%] mb-3">Твоя удача сегодня здесь!</p>
+                    <button onclick="toggleWallet(true)" class="bg-white text-indigo-700 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider shadow-lg active:scale-95 transition">
+                        Мой Кошелек
+                    </button>
+                </div>
+            </div>
+
+            <!-- Games Title -->
+            <div class="flex items-center justify-between mb-3 px-1">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                    <span class="text-yellow-500">🔥</span> Популярное
+                </h2>
+                <span class="text-[10px] text-slate-500 font-bold">ВСЕ ИГРЫ</span>
+            </div>
+
+            <!-- Games List -->
+            <div class="space-y-4">
+                
+                <!-- GAME 1: BOOMSHAKE -->
+                <div onclick="openGame('boomshake.html')" class="game-card shiny-effect group w-full aspect-[1.79/1] rounded-2xl bg-slate-800 relative cursor-pointer border border-slate-700 hover:border-purple-500/50">
+                    
+                    <!-- Картинка -->
+                    <div class="absolute inset-0 bg-[url('img/boomshake.jpg')] bg-cover bg-center opacity-80 group-hover:opacity-100 transition group-hover:scale-105 duration-700"></div>
+                    
+                    <!-- Градиент снизу, чтобы текст читался на любой картинке -->
+                    <div class="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-black/90 to-transparent pointer-events-none"></div>
+
+                    <div class="absolute bottom-0 left-0 w-full p-4 z-20 flex justify-between items-end">
+                        <div>
+                            <span class="px-2 py-0.5 rounded bg-pink-500 text-[9px] font-black text-white uppercase shadow-lg mb-1 inline-block">HOT</span>
+                            <h3 class="text-2xl font-black text-white drop-shadow-md leading-none">BoomShake</h3>
+                            <p class="text-[10px] text-slate-300 font-bold mt-1">Сочно. Мощно. Взрывоопасно.</p>
+                        </div>
+                        <button class="w-12 h-12 rounded-full bg-yellow-400 text-yellow-900 flex items-center justify-center text-2xl shadow-[0_0_15px_rgba(250,204,21,0.6)] hover:scale-110 transition">▶</button>
+                    </div>
+                </div>
+
+                <!-- Grid of games -->
+                <div class="grid grid-cols-2 gap-3">
+                    <!-- Stub 1 -->
+                    <div onclick="tg.showAlert('Скоро!')" class="game-card w-full aspect-square rounded-2xl bg-slate-800 relative cursor-pointer border border-slate-700 opacity-80 grayscale">
+                        <div class="absolute inset-0 flex items-center justify-center text-6xl opacity-20">🃏</div>
+                        <div class="absolute bottom-0 left-0 w-full p-3 z-20">
+                            <h3 class="text-sm font-black text-white">Poker</h3>
+                            <p class="text-[9px] text-slate-400 font-bold">Скоро...</p>
+                        </div>
+                        <div class="absolute top-2 right-2 text-xl">🔒</div>
+                    </div>
+                    <!-- Stub 2 -->
+                    <div onclick="tg.showAlert('Скоро!')" class="game-card w-full aspect-square rounded-2xl bg-slate-800 relative cursor-pointer border border-slate-700 opacity-80 grayscale">
+                        <div class="absolute inset-0 flex items-center justify-center text-6xl opacity-20">🎡</div>
+                        <div class="absolute bottom-0 left-0 w-full p-3 z-20">
+                            <h3 class="text-sm font-black text-white">Wheel</h3>
+                            <p class="text-[9px] text-slate-400 font-bold">Скоро...</p>
+                        </div>
+                        <div class="absolute top-2 right-2 text-xl">🔒</div>
+                    </div>
+                    
+                    <!-- Stub 3 (Extra for scroll test) -->
+                    <div onclick="tg.showAlert('Скоро!')" class="game-card w-full aspect-square rounded-2xl bg-slate-800 relative cursor-pointer border border-slate-700 opacity-80 grayscale">
+                        <div class="absolute inset-0 flex items-center justify-center text-6xl opacity-20">🚀</div>
+                        <div class="absolute bottom-0 left-0 w-full p-3 z-20">
+                            <h3 class="text-sm font-black text-white">Crash</h3>
+                            <p class="text-[9px] text-slate-400 font-bold">Скоро...</p>
+                        </div>
+                        <div class="absolute top-2 right-2 text-xl">🔒</div>
+                    </div>
+                    <!-- Stub 4 (Extra for scroll test) -->
+                    <div onclick="tg.showAlert('Скоро!')" class="game-card w-full aspect-square rounded-2xl bg-slate-800 relative cursor-pointer border border-slate-700 opacity-80 grayscale">
+                        <div class="absolute inset-0 flex items-center justify-center text-6xl opacity-20">🎲</div>
+                        <div class="absolute bottom-0 left-0 w-full p-3 z-20">
+                            <h3 class="text-sm font-black text-white">Dice</h3>
+                            <p class="text-[9px] text-slate-400 font-bold">Скоро...</p>
+                        </div>
+                        <div class="absolute top-2 right-2 text-xl">🔒</div>
+                    </div>
+                     <!-- Stub 5 (Extra for scroll test) -->
+                     <div onclick="tg.showAlert('Скоро!')" class="game-card w-full aspect-square rounded-2xl bg-slate-800 relative cursor-pointer border border-slate-700 opacity-80 grayscale">
+                        <div class="absolute inset-0 flex items-center justify-center text-6xl opacity-20">🎱</div>
+                        <div class="absolute bottom-0 left-0 w-full p-3 z-20">
+                            <h3 class="text-sm font-black text-white">Keno</h3>
+                            <p class="text-[9px] text-slate-400 font-bold">Скоро...</p>
+                        </div>
+                        <div class="absolute top-2 right-2 text-xl">🔒</div>
+                    </div>
+                     <!-- Stub 6 (Extra for scroll test) -->
+                     <div onclick="tg.showAlert('Скоро!')" class="game-card w-full aspect-square rounded-2xl bg-slate-800 relative cursor-pointer border border-slate-700 opacity-80 grayscale">
+                        <div class="absolute inset-0 flex items-center justify-center text-6xl opacity-20">💎</div>
+                        <div class="absolute bottom-0 left-0 w-full p-3 z-20">
+                            <h3 class="text-sm font-black text-white">Mines</h3>
+                            <p class="text-[9px] text-slate-400 font-bold">Скоро...</p>
+                        </div>
+                        <div class="absolute top-2 right-2 text-xl">🔒</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= PAGE: PROFILE ================= -->
+        <div id="view-profile" class="page-view px-4 py-6">
+            <div class="flex flex-col items-center mb-8">
+                <div class="w-24 h-24 rounded-full p-1 bg-gradient-to-tr from-yellow-400 to-purple-600 shadow-2xl mb-3 relative">
+                     <img id="profile-avatar-big" src="" class="w-full h-full rounded-full bg-slate-900 object-cover border-4 border-slate-900">
+                     <div class="absolute bottom-0 right-0 bg-slate-800 border border-slate-600 rounded-full w-8 h-8 flex items-center justify-center text-xs">✏️</div>
+                </div>
+                <h2 class="text-2xl font-black text-white" id="profile-name">Guest</h2>
+                <span class="px-3 py-1 bg-slate-800 rounded-full text-[10px] font-bold text-yellow-400 border border-yellow-400/30 mt-1">LEVEL 1</span>
+            </div>
+            <div class="grid grid-cols-2 gap-3 mb-6">
+                <div class="glass-panel p-4 rounded-2xl flex flex-col items-center">
+                    <span class="text-[10px] text-slate-400 font-bold uppercase">Баланс</span>
+                    <span class="text-xl font-mono font-bold text-green-400 profile-balance">0</span>
+                </div>
+                <div class="glass-panel p-4 rounded-2xl flex flex-col items-center">
+                    <span class="text-[10px] text-slate-400 font-bold uppercase">Игр сыграно</span>
+                    <span class="text-xl font-mono font-bold text-blue-400">0</span>
+                </div>
+            </div>
+            <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">Настройки</h3>
+            <div class="glass-panel rounded-2xl overflow-hidden">
+                <div class="p-4 border-b border-white/5 flex items-center justify-between">
+                    <span class="text-sm font-bold text-white">Звуки</span>
+                    <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                        <input type="checkbox" id="setting-sound" onchange="toggleSetting('sound')" checked class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer border-slate-600 transition-all duration-300"/>
+                        <label class="toggle-label block overflow-hidden h-5 rounded-full bg-slate-700 cursor-pointer"></label>
+                    </div>
+                </div>
+                <div class="p-4 flex items-center justify-between">
+                    <span class="text-sm font-bold text-white">Вибрация</span>
+                    <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                        <input type="checkbox" id="setting-haptic" onchange="toggleSetting('haptic')" checked class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer border-slate-600 transition-all duration-300"/>
+                        <label class="toggle-label block overflow-hidden h-5 rounded-full bg-slate-700 cursor-pointer"></label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= PAGE: LEADERS ================= -->
+        <div id="view-leaders" class="page-view px-4 py-6">
+             <div class="text-center mt-10 opacity-50">
+                <div class="text-6xl mb-4">🏆</div>
+                <h2 class="text-xl font-bold">Таблица лидеров</h2>
+                <p class="text-sm">Скоро появится...</p>
+             </div>
+        </div>
+
+    </main>
+
+    <!-- BOTTOM NAV (Фиксированный) -->
+    <nav class="fixed bottom-4 left-4 right-4 h-16 glass-panel rounded-2xl z-40 flex justify-between items-center px-4 shadow-2xl">
+        <div class="bottom-nav-item active-nav cursor-pointer" onclick="navigate('home')" id="nav-home">
+            <span class="text-xl">🏠</span><span class="text-[9px] font-bold">Главная</span>
+        </div>
+        <div class="bottom-nav-item cursor-pointer" onclick="toggleWallet(true)">
+            <span class="text-xl">👛</span><span class="text-[9px] font-bold">Кошелек</span>
+        </div>
+        <div class="bottom-nav-item cursor-pointer" onclick="navigate('leaders')" id="nav-leaders">
+            <span class="text-xl">🏆</span><span class="text-[9px] font-bold">Лидеры</span>
+        </div>
+        <div class="bottom-nav-item cursor-pointer" onclick="navigate('profile')" id="nav-profile">
+            <span class="text-xl">👤</span><span class="text-[9px] font-bold">Профиль</span>
+        </div>
+    </nav>
+
+    <!-- WALLET MODAL -->
+    <div id="wallet-modal" class="fixed inset-0 z-[60] hidden flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity">
+        <div id="wallet-content" class="bg-[#1e293b] w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 border-t border-white/10 shadow-2xl relative transform transition-transform duration-200 ease-out">
+            <!-- Drag Handle -->
+            <div id="drag-handle" class="w-full h-8 absolute top-0 left-0 flex items-center justify-center cursor-grab touch-none">
+                 <div class="w-12 h-1.5 bg-slate-600 rounded-full"></div>
+            </div>
+            <!-- Close -->
+            <button onclick="toggleWallet(false)" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center hover:bg-slate-700 z-10">✕</button>
+            <!-- Body -->
+            <div class="mt-6">
+                <div class="text-center mb-8">
+                    <div class="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">Твой Баланс</div>
+                    <div class="text-4xl font-mono font-black text-yellow-400 drop-shadow-lg" id="wallet-balance-big">0</div>
+                </div>
+                <div class="space-y-3">
+                    <div class="glass-panel p-4 rounded-xl flex items-center justify-between border border-white/5">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-xl shadow-lg">🎁</div>
+                            <div>
+                                <div class="text-sm font-bold text-white">Ежедневный бонус</div>
+                                <div class="text-[10px] text-slate-400">Доступно раз в 24 часа</div>
+                            </div>
+                        </div>
+                        <button id="btn-daily-bonus" onclick="claimDailyBonus()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg transition disabled:bg-slate-700 disabled:text-slate-400">ЗАБРАТЬ</button>
+                    </div>
+                    <div class="glass-panel p-4 rounded-xl flex items-center justify-between border border-white/5 opacity-60">
+                         <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-xl shadow-lg">📝</div>
+                            <div class="text-sm font-bold text-white">Задания</div>
+                        </div>
+                        <span class="text-[10px] border border-slate-600 px-2 py-1 rounded">Скоро</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        const INITIAL_BALANCE = 1000;
+        const DAILY_AMOUNT = 1000;
+
+        // === НАСТРОЙКИ SUPABASE ===
+        // ⚠️ НЕ ЗАБУДЬ ВСТАВИТЬ СВОИ КЛЮЧИ!
+        const SUPABASE_URL = 'https://ugkactbowbcxkwnovkwe.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_myr7kO9VcTIIuwVwRKWIAg_8Ee_-5Ga';
+        
+        // Проверка на случай, если ключи не вставлены (чтобы не падало с ошибкой)
+        let sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // ID текущего пользователя
+        let currentUserTgId = null;
+
+        // === ФУНКЦИИ БАЗЫ ДАННЫХ ===
+
+        // 1. Вход / Регистрация
+        async function syncUserWithDB(user) {
+            if (!sb || !user) return 1000;
+            currentUserTgId = user.id.toString();
+            // Берем фото или null, если его нет
+            const photoUrl = user.photo_url || null;
+
+            // Ищем игрока
+            let { data: player, error } = await sb
+                .from('players')
+                .select('*')
+                .eq('tg_id', currentUserTgId)
+                .single();
+
+            if (!player) {
+                // Если нет - создаем С АВАТАРКОЙ
+                const { error: insertError } = await sb
+                    .from('players')
+                    .insert([{ 
+                        tg_id: currentUserTgId, 
+                        username: user.first_name, 
+                        balance: 1000,
+                        avatar_url: photoUrl // <--- НОВОЕ
+                    }]);
+                
+                if (!insertError) {
+                    localStorage.setItem('jigu_bal_xl', 1000);
+                    return 1000;
+                }
+            } else {
+                // Если есть - ОБНОВЛЯЕМ аватарку и имя в фоне (вдруг сменил)
+                await sb
+                    .from('players')
+                    .update({ 
+                        username: user.first_name,
+                        avatar_url: photoUrl // <--- ОБНОВЛЯЕМ
+                    })
+                    .eq('tg_id', currentUserTgId);
+
+                // Возвращаем баланс
+                localStorage.setItem('jigu_bal_xl', player.balance);
+                return player.balance;
+            }
+            return 1000;
+        }
+
+        // 2. Сохранение баланса
+        async function saveBalanceToDB(newBalance) {
+            // Всегда пишем в локалку для мгновенной реакции
+            localStorage.setItem('jigu_bal_xl', newBalance);
+
+            // Если есть база и юзер - шлем в облако
+            if (sb && currentUserTgId) {
+                await sb
+                    .from('players')
+                    .update({ balance: newBalance })
+                    .eq('tg_id', currentUserTgId);
+            }
+        }
+
+        // 3. Получение лидеров
+        async function getLeaderboard() {
+            if (!sb) return [];
+            const { data, error } = await sb
+                .from('players')
+                .select('username, balance, avatar_url') // <--- ДОБАВИЛ avatar_url
+                .order('balance', { ascending: false })
+                .limit(10);
+            return data || [];
+        }
+
+        // 🔥 ИСПРАВЛЕНО: Добавлена функция отрисовки лидеров
+        async function showLeaders() {
+            const listContainer = document.getElementById('view-leaders');
+            listContainer.innerHTML = '<div class="text-center mt-10 animate-pulse text-yellow-400 font-bold">Загрузка топа...</div>';
+            
+            const leaders = await getLeaderboard();
+            
+            if (leaders.length === 0) {
+                listContainer.innerHTML = '<div class="text-center mt-10 opacity-50">Нет данных или нет подключения к базе</div>';
+                return;
+            }
+
+            let html = '<h2 class="text-2xl font-black text-center text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 mb-6 uppercase">Топ Богачей</h2><div class="space-y-3">';
+            
+            leaders.forEach((player, index) => {
+                let medal = index === 0 ? '🥇' : (index === 1 ? '🥈' : (index === 2 ? '🥉' : `#${index+1}`));
+                
+                // Стили для топ-3
+                let bgClass = index === 0 ? 'bg-yellow-500/20 border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.2)]' : 
+                            (index === 1 ? 'bg-slate-700/50 border-slate-500' : 
+                            (index === 2 ? 'bg-orange-900/30 border-orange-700' : 'bg-slate-800 border-slate-700'));
+                
+                // Аватарка или заглушка
+                // Если avatar_url есть - ставим его, иначе дефолтную иконку
+                let avatarHTML = player.avatar_url 
+                    ? `<img src="${player.avatar_url}" class="w-8 h-8 rounded-full object-cover border border-white/20">`
+                    : `<div class="w-8 h-8 rounded-full bg-slate-600 flex items-center justify-center text-xs">😎</div>`;
+
+                html += `
+                    <div class="glass-panel p-3 rounded-xl flex items-center justify-between border ${bgClass}">
+                        <div class="flex items-center gap-3">
+                            <div class="text-xl font-bold w-6 text-center">${medal}</div>
+                            
+                            <!-- Аватарка -->
+                            ${avatarHTML}
+                            
+                            <div class="font-bold text-white text-sm truncate max-w-[120px]">${player.username}</div>
+                        </div>
+                        <!-- Форматируем число (например: 1 500) -->
+                        <div class="font-mono text-yellow-400 font-bold text-sm">
+                            ${player.balance.toLocaleString('ru-RU')}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            listContainer.innerHTML = html;
+        }
+
+        // === ИНИЦИАЛИЗАЦИЯ ===
+        async function initApp() {
+            tg.expand();
+
+            // 🔥 ИСПРАВЛЕНИЕ: Сразу показываем баланс из памяти телефона!
+            // Не ждем интернета, чтобы не пугать юзера нулем.
+            updateBalanceUI(); 
+            
+            let user = tg.initDataUnsafe?.user;
+
+            // ЕСЛИ МЫ НЕ В ТЕЛЕГРАМЕ (Открыли в браузере)
+            if (!user) {
+                console.warn("⚠️ Запущено вне Telegram! Использую тестового пользователя.");
+                user = {
+                    id: 111111,
+                    first_name: "Тестовый",
+                    last_name: "Игрок",
+                    username: "test_dev",
+                    photo_url: "https://cdn-icons-png.flaticon.com/512/1077/1077114.png"
+                };
+            }
+
+            if (user) {
+                // UI пользователя
+                document.getElementById('username').innerText = user.first_name;
+                document.getElementById('profile-name').innerText = user.first_name + (user.last_name ? ' ' + user.last_name : '');
+                
+                // Аватарка
+                if(user.photo_url) {
+                    const img = document.getElementById('user-avatar');
+                    const profImg = document.getElementById('profile-avatar-big');
+                    const fallback = document.getElementById('user-avatar-fallback');
+                    
+                    if(img) { img.src = user.photo_url; img.classList.remove('hidden'); }
+                    if(profImg) profImg.src = user.photo_url;
+                    if(fallback) fallback.classList.add('hidden');
+                } else {
+                     const profImg = document.getElementById('profile-avatar-big');
+                     if(profImg) profImg.src = "https://cdn-icons-png.flaticon.com/512/847/847969.png"; 
+                }
+
+                // Синхронизация с базой (это может занять время, но баланс уже показан выше)
+                await syncUserWithDB(user);
+                
+                // Обновляем еще раз ПОСЛЕ получения точных данных из базы
+                updateBalanceUI();
+            } else {
+                checkFirstTime();
+                updateBalanceUI();
+            }
+
+            checkDailyStatus();
+            setupSwipeToClose();
+            initSettings();
+        }
+
+        function initSettings() {
+            const soundOn = localStorage.getItem('moji_sound') !== 'false';
+            const hapticOn = localStorage.getItem('moji_haptic') !== 'false';
+            const soundCheck = document.getElementById('setting-sound');
+            const hapticCheck = document.getElementById('setting-haptic');
+
+            if(soundCheck) soundCheck.checked = soundOn;
+            if(hapticCheck) hapticCheck.checked = hapticOn;
+        }
+
+        function toggleSetting(type) {
+            if (type === 'sound') {
+                const isChecked = document.getElementById('setting-sound').checked;
+                localStorage.setItem('moji_sound', isChecked);
+            }
+            if (type === 'haptic') {
+                const isChecked = document.getElementById('setting-haptic').checked;
+                localStorage.setItem('moji_haptic', isChecked);
+                if (isChecked && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+            }
+        }
+
+        // Фолбэк для локального тестирования
+        function checkFirstTime() {
+            if (localStorage.getItem('jigu_bal_xl') === null) {
+                localStorage.setItem('jigu_bal_xl', INITIAL_BALANCE);
+            }
+        }
+
+        function updateBalanceUI() {
+            const bal = parseInt(localStorage.getItem('jigu_bal_xl') || 0);
+            
+            // Форматирование: 1 000 000 вместо 1000000
+            const formattedBal = bal.toLocaleString('ru-RU');
+
+            document.getElementById('header-balance').innerText = formattedBal;
+            document.getElementById('wallet-balance-big').innerText = formattedBal;
+            document.querySelector('.profile-balance').innerText = formattedBal;
+        }
+
+        function getTodayString() { return new Date().toDateString(); }
+
+        function checkDailyStatus() {
+            const lastDate = localStorage.getItem('last_daily_date');
+            const btn = document.getElementById('btn-daily-bonus');
+            if (lastDate === getTodayString()) {
+                btn.disabled = true;
+                btn.innerText = "ЗАВТРА";
+            } else {
+                btn.disabled = false;
+                btn.innerText = `+${DAILY_AMOUNT}`;
+            }
+        }
+
+        // 🔥 ИСПРАВЛЕНО: Теперь сохраняет в базу
+        function claimDailyBonus() {
+            if(document.getElementById('btn-daily-bonus').disabled) return;
+            
+            let current = parseInt(localStorage.getItem('jigu_bal_xl') || 0);
+            let newBalance = current + DAILY_AMOUNT;
+            
+            // Сохраняем и локально, и в облако
+            saveBalanceToDB(newBalance);
+            localStorage.setItem('last_daily_date', getTodayString());
+            
+            updateBalanceUI();
+            checkDailyStatus();
+            
+            if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+            
+            const btn = document.getElementById('btn-daily-bonus');
+            btn.innerText = "УСПЕШНО!";
+            setTimeout(() => toggleWallet(false), 700);
+        }
+
+        // 🔥 ИСПРАВЛЕНО: Добавлен вызов showLeaders()
+        function navigate(viewId) {
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+            
+            document.querySelectorAll('.page-view').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active-nav'));
+            
+            document.getElementById(`view-${viewId}`).classList.add('active');
+            const navBtn = document.getElementById(`nav-${viewId}`);
+            if(navBtn) navBtn.classList.add('active-nav');
+
+            // Если открыли лидеров - подгружаем данные
+            if (viewId === 'leaders') {
+                showLeaders();
+            }
+        }
+
+        function openGame(url) {
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+            setTimeout(() => window.location.href = url, 100);
+        }
+
+        function toggleWallet(show) {
+            const modal = document.getElementById('wallet-modal');
+            const content = document.getElementById('wallet-content');
+            if(show) {
+                modal.classList.remove('hidden');
+                content.style.transform = 'translateY(100%)'; 
+                setTimeout(() => { content.style.transform = 'translateY(0)'; }, 10);
+                checkDailyStatus();
+            } else {
+                content.style.transform = 'translateY(100%)';
+                setTimeout(() => { modal.classList.add('hidden'); }, 200);
+            }
+        }
+
+        function setupSwipeToClose() {
+            const content = document.getElementById('wallet-content');
+            let startY = 0;
+            let currentY = 0;
+            let isDragging = false;
+
+            content.addEventListener('touchstart', (e) => {
+                if (content.scrollTop > 0) return;
+                startY = e.touches[0].clientY;
+                isDragging = true;
+                content.style.transition = 'none';
+            }, {passive: true});
+
+            content.addEventListener('touchmove', (e) => {
+                if (!isDragging) return;
+                currentY = e.touches[0].clientY;
+                let diff = currentY - startY;
+                if (diff > 0) {
+                    e.preventDefault();
+                    content.style.transform = `translateY(${diff}px)`;
+                }
+            }, {passive: false});
+
+            content.addEventListener('touchend', (e) => {
+                if (!isDragging) return;
+                isDragging = false;
+                content.style.transition = 'transform 0.2s ease-out';
+                let diff = currentY - startY;
+                if (diff > 100 && currentY > startY) toggleWallet(false);
+                else content.style.transform = 'translateY(0)';
+            });
+            
+            document.getElementById('wallet-modal').addEventListener('click', (e) => {
+                if(e.target.id === 'wallet-modal') toggleWallet(false);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initApp();
+            // При возврате на вкладку обновляем баланс (вдруг в игре изменился)
+            window.addEventListener('focus', () => {
+                updateBalanceUI();
+                checkDailyStatus();
+            });
+        });
+    </script>
+</body>
+</html>
