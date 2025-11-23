@@ -305,6 +305,18 @@
                         </div>
                         <button id="btn-daily-bonus" onclick="claimDailyBonus()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg transition disabled:bg-slate-700 disabled:text-slate-400">ЗАБРАТЬ</button>
                     </div>
+                    <div class="glass-panel p-4 rounded-xl flex items-center justify-between border border-white/5">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-xl shadow-lg">🤝</div>
+                            <div>
+                                <div class="text-sm font-bold text-white">Пригласи друга</div>
+                                <div class="text-[10px] text-yellow-400 font-bold">+5000</div>
+                            </div>
+                        </div>
+                        <button onclick="inviteFriend()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg transition active:scale-95">
+                            ЗОВИ!
+                        </button>
+                    </div>
                     <div class="glass-panel p-4 rounded-xl flex items-center justify-between border border-white/5 opacity-60">
                          <div class="flex items-center gap-3">
                             <div class="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-xl shadow-lg">📝</div>
@@ -339,10 +351,9 @@
         async function syncUserWithDB(user) {
             if (!sb || !user) return 1000;
             currentUserTgId = user.id.toString();
-            // Берем фото или null, если его нет
             const photoUrl = user.photo_url || null;
 
-            // Ищем игрока
+            // 1. Проверяем, существует ли игрок
             let { data: player, error } = await sb
                 .from('players')
                 .select('*')
@@ -350,31 +361,62 @@
                 .single();
 
             if (!player) {
-                // Если нет - создаем С АВАТАРКОЙ
+                // === ИГРОК НОВЫЙ! ПРОВЕРЯЕМ РЕФЕРАЛКУ ===
+                
+                let startBalance = 1000; // Базовый баланс
+                
+                // Получаем start_param из URL (это ID пригласившего)
+                const referrerId = tg.initDataUnsafe?.start_param;
+
+                if (referrerId && referrerId !== currentUserTgId) {
+                    // Если есть реферрер, и это не мы сами
+                    console.log(`Пришел от друга: ${referrerId}`);
+
+                    // Ищем пригласившего в базе
+                    const { data: referrerUser } = await sb
+                        .from('players')
+                        .select('balance')
+                        .eq('tg_id', referrerId)
+                        .single();
+
+                    if (referrerUser) {
+                        // Начисляем 5000 пригласившему
+                        const bonus = 5000;
+                        await sb
+                            .from('players')
+                            .update({ balance: referrerUser.balance + bonus })
+                            .eq('tg_id', referrerId);
+                        
+                        // (Опционально) Можно дать бонус и новичку, например +500 монет
+                        // startBalance += 500; 
+                    }
+                }
+
+                // === СОЗДАЕМ НОВОГО ИГРОКА ===
                 const { error: insertError } = await sb
                     .from('players')
                     .insert([{ 
                         tg_id: currentUserTgId, 
                         username: user.first_name, 
-                        balance: 1000,
-                        avatar_url: photoUrl // <--- НОВОЕ
+                        balance: startBalance,
+                        avatar_url: photoUrl
                     }]);
                 
                 if (!insertError) {
-                    localStorage.setItem('jigu_bal_xl', 1000);
-                    return 1000;
+                    localStorage.setItem('jigu_bal_xl', startBalance);
+                    return startBalance;
                 }
             } else {
-                // Если есть - ОБНОВЛЯЕМ аватарку и имя в фоне (вдруг сменил)
+                // === ИГРОК УЖЕ ЕСТЬ ===
+                // Просто обновляем данные
                 await sb
                     .from('players')
                     .update({ 
                         username: user.first_name,
-                        avatar_url: photoUrl // <--- ОБНОВЛЯЕМ
+                        avatar_url: photoUrl
                     })
                     .eq('tg_id', currentUserTgId);
 
-                // Возвращаем баланс
                 localStorage.setItem('jigu_bal_xl', player.balance);
                 return player.balance;
             }
@@ -658,6 +700,24 @@
             document.getElementById('wallet-modal').addEventListener('click', (e) => {
                 if(e.target.id === 'wallet-modal') toggleWallet(false);
             });
+        }
+
+        function inviteFriend() {
+            // Получаем ID текущего игрока
+            const userId = currentUserTgId || tg.initDataUnsafe?.user?.id;
+            if (!userId) return tg.showAlert("Ошибка идентификации!");
+
+            // Формируем ссылку. startapp=ID передаст твой ID другу
+            // ЗАМЕНИ НА СВОИ ДАННЫЕ НИЖЕ 👇
+            const botUserName = "mojislots_bot"; // Имя твоего бота (без @)
+            const appName = "mojislots";            // Short name приложения (которое ты вводил в BotFather)
+            
+            const inviteLink = `https://t.me/${botUserName}/${appName}?startapp=${userId}`;
+            const text = `Смотри какую нашёл игру! Играем вместе?`;
+
+            // Используем нативный шеринг телеграма
+            const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(text)}`;
+            tg.openTelegramLink(shareUrl);
         }
 
         document.addEventListener('DOMContentLoaded', () => {
