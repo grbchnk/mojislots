@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="profile.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         body {
@@ -34,7 +35,6 @@
         .page-view {
             display: none;
             animation: fadeIn 0.3s ease-out;
-            padding-bottom: 120px; /* Большой отступ снизу, чтобы меню не перекрывало контент */
         }
         .page-view.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -155,13 +155,26 @@
                 <!-- Grid of games -->
                 <div class="grid grid-cols-2 gap-3">
                     <!-- Stub 1 -->
-                    <div onclick="tg.showAlert('Скоро!')" class="game-card w-full aspect-square rounded-2xl bg-slate-800 relative cursor-pointer border border-slate-700 opacity-80 grayscale">
-                        <div class="absolute inset-0 flex items-center justify-center text-6xl opacity-20">🃏</div>
+    
+                    <!-- НОВАЯ ИГРА: HI-LO -->
+                    <!-- НОВАЯ ИГРА: RED VS BLACK -->
+                    <div onclick="openGame('redvsblack.html')" class="game-card w-full aspect-square rounded-2xl bg-slate-800 relative cursor-pointer border border-slate-700 hover:border-red-500/50 group overflow-hidden">
+                        
+                        <!-- Картинка на фоне (с зумом при наведении) -->
+                        <div class="absolute inset-0 bg-[url('img/redvsblack.png')] bg-cover bg-center transition duration-700 group-hover:scale-110"></div>
+                        
+                        <!-- Затемнение снизу, чтобы текст читался -->
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"></div>
+                        
+                        <!-- Текст и лейбл -->
                         <div class="absolute bottom-0 left-0 w-full p-3 z-20">
-                            <h3 class="text-sm font-black text-white">Poker</h3>
-                            <p class="text-[9px] text-slate-400 font-bold">Скоро...</p>
+                            <span class="px-1.5 py-0.5 rounded bg-red-600 text-[8px] font-black text-white uppercase shadow mb-1 inline-block">NEW</span>
+                            <h3 class="text-sm font-black text-white leading-tight">Red vs Black</h3>
+                            <p class="text-[9px] text-slate-300 font-bold">Красное или Черное?</p>
                         </div>
-                        <div class="absolute top-2 right-2 text-xl">🔒</div>
+
+                        <!-- Блик (оставляем для красоты) -->
+                        <div class="absolute top-0 right-0 w-full h-full bg-gradient-to-bl from-white/10 to-transparent pointer-events-none"></div>
                     </div>
                     <!-- Stub 2 -->
                     <div onclick="tg.showAlert('Скоро!')" class="game-card w-full aspect-square rounded-2xl bg-slate-800 relative cursor-pointer border border-slate-700 opacity-80 grayscale">
@@ -209,6 +222,7 @@
                         </div>
                         <div class="absolute top-2 right-2 text-xl">🔒</div>
                     </div>
+                    
                 </div>
             </div>
         </div>
@@ -216,11 +230,18 @@
         <!-- ================= PAGE: PROFILE ================= -->
         <div id="view-profile" class="page-view px-4 py-6">
             <div class="flex flex-col items-center mb-8">
-                <div class="w-24 h-24 rounded-full p-1 bg-gradient-to-tr from-yellow-400 to-purple-600 shadow-2xl mb-3 relative">
-                     <img id="profile-avatar-big" src="" class="w-full h-full rounded-full bg-slate-900 object-cover border-4 border-slate-900">
-                     <div class="absolute bottom-0 right-0 bg-slate-800 border border-slate-600 rounded-full w-8 h-8 flex items-center justify-center text-xs">✏️</div>
+                <div class="w-24 h-24 rounded-full p-1 bg-gradient-to-tr from-yellow-400 to-purple-600 shadow-2xl mb-3 relative group" onclick="toggleEditModal(true)">
+                        <img id="profile-avatar-big" src="" class="w-full h-full rounded-full bg-slate-900 object-cover border-4 border-slate-900">
+                        <!-- Кнопка редактирования -->
+                        <div class="absolute bottom-0 right-0 bg-blue-600 border-2 border-slate-900 rounded-full w-8 h-8 flex items-center justify-center text-xs shadow-lg cursor-pointer active:scale-90 transition text-white">✏️</div>
                 </div>
-                <h2 class="text-2xl font-black text-white" id="profile-name">Guest</h2>
+                
+                <!-- Имя теперь тоже кликабельно -->
+                <div class="flex items-center gap-2 cursor-pointer" onclick="toggleEditModal(true)">
+                    <h2 class="text-2xl font-black text-white" id="profile-name">Guest</h2>
+                    <span class="text-slate-500 text-xs opacity-50">✎</span>
+                </div>
+                
                 <span class="px-3 py-1 bg-slate-800 rounded-full text-[10px] font-bold text-yellow-400 border border-yellow-400/30 mt-1">LEVEL 1</span>
             </div>
             <div class="grid grid-cols-2 gap-3 mb-6">
@@ -230,7 +251,7 @@
                 </div>
                 <div class="glass-panel p-4 rounded-2xl flex flex-col items-center">
                     <span class="text-[10px] text-slate-400 font-bold uppercase">Игр сыграно</span>
-                    <span class="text-xl font-mono font-bold text-blue-400">0</span>
+                    <span id="profile-games-played" class="text-xl font-mono font-bold text-blue-400">0</span>
                 </div>
             </div>
             <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">Настройки</h3>
@@ -260,6 +281,7 @@
                 <p class="text-sm">Скоро появится...</p>
              </div>
         </div>
+         <div class="w-full h-20 shrink-0"></div> 
 
     </main>
 
@@ -329,6 +351,48 @@
         </div>
     </div>
 
+    <!-- EDIT PROFILE MODAL -->
+    <div id="edit-modal" class="fixed inset-0 z-[70] hidden flex items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity opacity-0">
+        <div class="bg-[#1e293b] w-[90%] max-w-sm rounded-3xl p-6 border border-white/10 shadow-2xl transform scale-95 transition-all duration-200 relative overflow-hidden" id="edit-modal-content">
+            
+            <!-- Close Button -->
+            <button onclick="toggleEditModal(false)" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center z-10">✕</button>
+
+            <h3 class="text-xl font-black text-white italic mb-4 text-center">Настройки профиля</h3>
+            
+            <div class="space-y-5">
+                
+                <!-- 1. Смена имени -->
+                <div>
+                    <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider ml-1">Твое имя</label>
+                    <div class="relative mt-1">
+                        <input type="text" id="input-edit-name" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:border-yellow-400 transition placeholder-slate-600 text-center" placeholder="Имя...">
+                    </div>
+                </div>
+
+                <!-- 2. Выбор Аватара -->
+                <div>
+                    <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider ml-1 mb-2 block">Выберите аватар</label>
+                    
+                    <!-- Сетка эмодзи -->
+                    <div class="grid grid-cols-5 gap-2 mb-3" id="avatar-grid">
+                        <!-- Генерируется через JS -->
+                    </div>
+
+                    <!-- Кнопка возврата фото -->
+                    <button onclick="selectAvatar('tg_photo')" id="btn-restore-photo" class="w-full py-2 rounded-lg border border-slate-700 bg-slate-800/50 text-slate-400 text-xs font-bold hover:bg-slate-700 hover:text-white transition flex items-center justify-center gap-2">
+                        <span>📷</span> Вернуть фото Telegram
+                    </button>
+                </div>
+
+                <!-- Save Button -->
+                <button onclick="saveProfileChanges()" class="w-full py-3 rounded-xl bg-gradient-to-r from-yellow-400 to-orange-500 text-slate-900 font-black uppercase tracking-widest shadow-lg shadow-orange-500/20 active:scale-95 transition">
+                    Сохранить изменения
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const tg = window.Telegram.WebApp;
         const INITIAL_BALANCE = 1000;
@@ -348,12 +412,15 @@
         // === ФУНКЦИИ БАЗЫ ДАННЫХ ===
 
         // 1. Вход / Регистрация
+        // === ОБНОВЛЕННАЯ ФУНКЦИЯ ВХОДА И РЕГИСТРАЦИИ ===
         async function syncUserWithDB(user) {
-            if (!sb || !user) return 1000;
+            if (!sb || !user) return null; 
             currentUserTgId = user.id.toString();
-            const photoUrl = user.photo_url || null;
+            
+            // Дефолтное фото из телеграма (на случай регистрации)
+            const tgPhoto = user.photo_url || null;
 
-            // 1. Проверяем, существует ли игрок
+            // 1. Ищем игрока
             let { data: player, error } = await sb
                 .from('players')
                 .select('*')
@@ -361,66 +428,46 @@
                 .single();
 
             if (!player) {
-                // === ИГРОК НОВЫЙ! ПРОВЕРЯЕМ РЕФЕРАЛКУ ===
+                // === НОВЫЙ ИГРОК ===
+                let startBalance = 1000;
                 
-                let startBalance = 1000; // Базовый баланс
-                
-                // Получаем start_param из URL (это ID пригласившего)
+                // Проверка рефералки
                 const referrerId = tg.initDataUnsafe?.start_param;
-
                 if (referrerId && referrerId !== currentUserTgId) {
-                    // Если есть реферрер, и это не мы сами
-                    console.log(`Пришел от друга: ${referrerId}`);
-
-                    // Ищем пригласившего в базе
-                    const { data: referrerUser } = await sb
-                        .from('players')
-                        .select('balance')
-                        .eq('tg_id', referrerId)
-                        .single();
-
+                    const { data: referrerUser } = await sb.from('players').select('balance').eq('tg_id', referrerId).single();
                     if (referrerUser) {
-                        // Начисляем 5000 пригласившему
-                        const bonus = 5000;
-                        await sb
-                            .from('players')
-                            .update({ balance: referrerUser.balance + bonus })
-                            .eq('tg_id', referrerId);
-                        
-                        // (Опционально) Можно дать бонус и новичку, например +500 монет
-                        // startBalance += 500; 
+                        await sb.from('players').update({ balance: referrerUser.balance + 5000 }).eq('tg_id', referrerId);
                     }
                 }
 
-                // === СОЗДАЕМ НОВОГО ИГРОКА ===
-                const { error: insertError } = await sb
+                // Создаем запись
+                const { data: newPlayer, error: insertError } = await sb
                     .from('players')
                     .insert([{ 
                         tg_id: currentUserTgId, 
                         username: user.first_name, 
                         balance: startBalance,
-                        avatar_url: photoUrl
-                    }]);
+                        avatar_url: tgPhoto // При первой реге ставим фото из ТГ
+                    }])
+                    .select()
+                    .single();
                 
-                if (!insertError) {
+                if (!insertError && newPlayer) {
                     localStorage.setItem('jigu_bal_xl', startBalance);
-                    return startBalance;
+                    return newPlayer; // Возвращаем объект игрока
                 }
+                
+                // Фолбэк если ошибка вставки
+                return { balance: startBalance, avatar_url: tgPhoto, username: user.first_name };
+
             } else {
                 // === ИГРОК УЖЕ ЕСТЬ ===
-                // Просто обновляем данные
-                await sb
-                    .from('players')
-                    .update({ 
-                        username: user.first_name,
-                        avatar_url: photoUrl
-                    })
-                    .eq('tg_id', currentUserTgId);
-
+                // Мы НЕ обновляем avatar_url здесь принудительно, чтобы не стереть эмодзи!
+                // Обновляем только если хотим, например, last_seen или что-то такое.
+                
                 localStorage.setItem('jigu_bal_xl', player.balance);
-                return player.balance;
+                return player; // Возвращаем объект игрока из базы
             }
-            return 1000;
         }
 
         // 2. Сохранение баланса
@@ -451,7 +498,13 @@
         // 🔥 ИСПРАВЛЕНО: Добавлена функция отрисовки лидеров
         async function showLeaders() {
             const listContainer = document.getElementById('view-leaders');
-            listContainer.innerHTML = '<div class="text-center mt-10 animate-pulse text-yellow-400 font-bold">Загрузка топа...</div>';
+            
+            // Анимация загрузки
+            listContainer.innerHTML = `
+                <div class="flex flex-col items-center mt-20 animate-pulse opacity-70">
+                    <div class="text-4xl mb-2">⏳</div>
+                    <div class="text-yellow-400 font-bold">Загрузка топа...</div>
+                </div>`;
             
             const leaders = await getLeaderboard();
             
@@ -460,34 +513,44 @@
                 return;
             }
 
-            let html = '<h2 class="text-2xl font-black text-center text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 mb-6 uppercase">Топ Богачей</h2><div class="space-y-3">';
+            let html = '<h2 class="text-2xl font-black text-center text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 mb-6 uppercase drop-shadow-sm">🏆 Топ Богачей</h2><div class="space-y-3">';
             
             leaders.forEach((player, index) => {
                 let medal = index === 0 ? '🥇' : (index === 1 ? '🥈' : (index === 2 ? '🥉' : `#${index+1}`));
                 
-                // Стили для топ-3
-                let bgClass = index === 0 ? 'bg-yellow-500/20 border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.2)]' : 
-                            (index === 1 ? 'bg-slate-700/50 border-slate-500' : 
-                            (index === 2 ? 'bg-orange-900/30 border-orange-700' : 'bg-slate-800 border-slate-700'));
+                // Стили для топ-3 (подсветка)
+                let bgClass = index === 0 ? 'bg-yellow-500/20 border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.2)]' : 
+                            (index === 1 ? 'bg-slate-600/40 border-slate-500/50' : 
+                            (index === 2 ? 'bg-orange-900/40 border-orange-700/50' : 'glass-panel border-white/5'));
                 
-                // Аватарка или заглушка
-                // Если avatar_url есть - ставим его, иначе дефолтную иконку
-                let avatarHTML = player.avatar_url 
-                    ? `<img src="${player.avatar_url}" class="w-8 h-8 rounded-full object-cover border border-white/20">`
-                    : `<div class="w-8 h-8 rounded-full bg-slate-600 flex items-center justify-center text-xs">😎</div>`;
+                // === ЛОГИКА АВАТАРА (ИСПРАВЛЕНИЕ) ===
+                let avatarHTML;
+                const raw = player.avatar_url;
+                
+                // Проверяем, ссылка ли это (содержит http)
+                const isUrl = raw && (raw.includes('http') || raw.includes('https'));
 
+                if (isUrl) {
+                    // Если ссылка -> ставим картинку
+                    avatarHTML = `<img src="${raw}" class="w-9 h-9 rounded-full object-cover border border-white/20 bg-slate-900">`;
+                } else {
+                    // Если нет -> ставим смайлик (или дефолтный 😎)
+                    const emoji = raw || '😎';
+                    avatarHTML = `<div class="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center text-xl border border-white/10 select-none shadow-inner">${emoji}</div>`;
+                }
+                
+                // Собираем строку
                 html += `
-                    <div class="glass-panel p-3 rounded-xl flex items-center justify-between border ${bgClass}">
+                    <div class="p-3 rounded-xl flex items-center justify-between border ${bgClass} transition hover:scale-[1.02]">
                         <div class="flex items-center gap-3">
-                            <div class="text-xl font-bold w-6 text-center">${medal}</div>
+                            <div class="text-sm font-black w-6 text-center text-slate-400">${medal}</div>
                             
-                            <!-- Аватарка -->
+                            <!-- Вставляем готовый HTML аватара -->
                             ${avatarHTML}
                             
-                            <div class="font-bold text-white text-sm truncate max-w-[120px]">${player.username}</div>
+                            <div class="font-bold text-white text-sm truncate max-w-[110px]">${player.username}</div>
                         </div>
-                        <!-- Форматируем число (например: 1 500) -->
-                        <div class="font-mono text-yellow-400 font-bold text-sm">
+                        <div class="font-mono text-yellow-400 font-bold text-sm tracking-tight">
                             ${player.balance.toLocaleString('ru-RU')}
                         </div>
                     </div>
@@ -502,53 +565,60 @@
         async function initApp() {
             tg.expand();
 
-            // 🔥 ИСПРАВЛЕНИЕ: Сразу показываем баланс из памяти телефона!
-            // Не ждем интернета, чтобы не пугать юзера нулем.
+            // 1. Предварительная отрисовка баланса из кэша (для скорости)
             updateBalanceUI(); 
             
             let user = tg.initDataUnsafe?.user;
 
-            // ЕСЛИ МЫ НЕ В ТЕЛЕГРАМЕ (Открыли в браузере)
+            // Режим отладки (в браузере)
             if (!user) {
-                console.warn("⚠️ Запущено вне Telegram! Использую тестового пользователя.");
+                console.warn("⚠️ Запущено вне Telegram! Тестовый режим.");
                 user = {
                     id: 111111,
-                    first_name: "Тестовый",
-                    last_name: "Игрок",
+                    first_name: "Test",
+                    last_name: "Player",
                     username: "test_dev",
-                    photo_url: "https://cdn-icons-png.flaticon.com/512/1077/1077114.png"
+                    photo_url: null // Нет фото
                 };
             }
 
             if (user) {
-                // UI пользователя
+                // 2. Первичная настройка UI (имя)
+                const displayName = user.first_name + (user.last_name ? ' ' + user.last_name : '');
                 document.getElementById('username').innerText = user.first_name;
-                document.getElementById('profile-name').innerText = user.first_name + (user.last_name ? ' ' + user.last_name : '');
-                
-                // Аватарка
-                if(user.photo_url) {
-                    const img = document.getElementById('user-avatar');
-                    const profImg = document.getElementById('profile-avatar-big');
-                    const fallback = document.getElementById('user-avatar-fallback');
-                    
-                    if(img) { img.src = user.photo_url; img.classList.remove('hidden'); }
-                    if(profImg) profImg.src = user.photo_url;
-                    if(fallback) fallback.classList.add('hidden');
-                } else {
-                     const profImg = document.getElementById('profile-avatar-big');
-                     if(profImg) profImg.src = "https://cdn-icons-png.flaticon.com/512/847/847969.png"; 
-                }
+                document.getElementById('profile-name').innerText = displayName;
 
-                // Синхронизация с базой (это может занять время, но баланс уже показан выше)
-                await syncUserWithDB(user);
+                // 3. Синхронизация с БД
+                // Ждем ответа базы, чтобы узнать актуальный Аватар и Баланс
+                const playerData = await syncUserWithDB(user);
+
+                if (playerData) {
+                    // Если база ответила, обновляем баланс точно
+                    localStorage.setItem('jigu_bal_xl', playerData.balance);
+                    updateBalanceUI();
+
+                    // Если в базе есть имя (возможно измененное пользователем), ставим его
+                    if (playerData.username) {
+                        document.getElementById('username').innerText = playerData.username;
+                        document.getElementById('profile-name').innerText = playerData.username;
+                    }
+
+                    // === ГЛАВНОЕ: ОТРИСОВКА АВАТАРА ===
+                    // Берем из базы, если нет - то из телеграма, если нет - то заглушку
+                    const finalAvatar = playerData.avatar_url || user.photo_url;
+                    renderAvatarGlobal(finalAvatar); // Функция из profile.js
+                } else {
+                    // Если базы нет (ошибка сети), ставим фото из ТГ
+                    renderAvatarGlobal(user.photo_url);
+                }
                 
-                // Обновляем еще раз ПОСЛЕ получения точных данных из базы
-                updateBalanceUI();
             } else {
+                // Совсем фолбэк (вряд ли случится)
                 checkFirstTime();
                 updateBalanceUI();
             }
 
+            // Запуск остальных систем
             checkDailyStatus();
             setupSwipeToClose();
             initSettings();
@@ -621,6 +691,7 @@
             
             updateBalanceUI();
             checkDailyStatus();
+            spawnCoins();
             
             if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
             
@@ -643,6 +714,33 @@
             // Если открыли лидеров - подгружаем данные
             if (viewId === 'leaders') {
                 showLeaders();
+            }
+
+            refreshPlayerData();
+        }
+
+        async function refreshPlayerData() {
+            if (!sb || !currentUserTgId) return;
+
+            // Запрашиваем свежие данные из базы
+            const { data: player, error } = await sb
+                .from('players')
+                .select('*')
+                .eq('tg_id', currentUserTgId)
+                .single();
+
+            if (player && !error) {
+                // Обновляем баланс, если он изменился
+                localStorage.setItem('jigu_bal_xl', player.balance);
+                updateBalanceUI();
+                
+                // Обновляем счетчик сыгранных игр (если он есть)
+                if (typeof updateGamesPlayedUI === 'function') {
+                    updateGamesPlayedUI(player.games_played || 0);
+                }
+
+                // 🔥 ПРОВЕРЯЕМ НАГРАДЫ
+                await checkReferralRewards(player);
             }
         }
 
@@ -718,6 +816,109 @@
             // Используем нативный шеринг телеграма
             const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(text)}`;
             tg.openTelegramLink(shareUrl);
+        }
+
+        // Функция обновления интерфейса "Игр сыграно"
+        function updateGamesPlayedUI(count) {
+            const el = document.getElementById('profile-games-played');
+            if (el) el.innerText = count;
+        }
+
+        // Функция проверки награды за друзей
+        async function checkReferralRewards(playerData) {
+            const pending = parseInt(playerData.pending_referrals || 0);
+            
+            // Условие: >= 2
+            if (pending >= 2) {
+                const bonusPerFriend = 5000;
+                const totalBonus = pending * bonusPerFriend;
+                
+                console.log(`Начисляем бонус: ${totalBonus}`);
+
+                const newBalance = (playerData.balance || 0) + totalBonus;
+                
+                // 1. Обновляем базу
+                const { error } = await sb
+                    .from('players')
+                    .update({ 
+                        balance: newBalance,
+                        pending_referrals: 0 
+                    })
+                    .eq('tg_id', currentUserTgId);
+
+                if (!error) {
+                    // 2. Обновляем локально
+                    saveBalanceToDB(newBalance);
+                    updateBalanceUI();
+
+                    // 3. Показываем уведомление (с защитой от ошибок)
+                    setTimeout(() => {
+                        const msg = `🎉 Поздравляем!\n\nДрузей приглашено: ${pending}\nВаш бонус: +${totalBonus.toLocaleString()} монет!`;
+                        
+                        try {
+                            // Пытаемся вызвать нативный метод Telegram
+                            if (tg.showAlert) {
+                                tg.showAlert(msg);
+                            } else {
+                                // Если метода нет в объекте tg
+                                alert(msg);
+                            }
+                        } catch (e) {
+                            // Если метод есть, но вызвал ошибку (например, старая версия Telegram)
+                            console.warn("Native alert failed, using browser alert", e);
+                            alert(msg);
+                        }
+
+                        if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+                    }, 500); 
+                }
+            }
+        }
+
+        
+
+        // === АНИМАЦИЯ МОНЕТОК (ВИЗУАЛЬНЫЙ ЭФФЕКТ) ===
+        // Вызывай spawnCoins() когда игрок получает бонус!
+        
+        function spawnCoins() {
+            const count = 15; // Количество монет
+            const container = document.body;
+
+            for (let i = 0; i < count; i++) {
+                const coin = document.createElement('div');
+                coin.innerText = '💰';
+                coin.style.position = 'fixed';
+                coin.style.left = '50%';
+                coin.style.top = '50%';
+                coin.style.fontSize = '24px';
+                coin.style.zIndex = '100';
+                coin.style.pointerEvents = 'none';
+                coin.style.transition = 'all 0.8s ease-in';
+                
+                // Случайный разлет
+                const x = (Math.random() - 0.5) * window.innerWidth * 0.8;
+                const y = (Math.random() - 0.5) * window.innerHeight * 0.5;
+                
+                coin.style.transform = `translate(${x}px, ${y}px) scale(1.5)`;
+                
+                container.appendChild(coin);
+
+                // Анимация полета к кошельку (в правый верхний угол)
+                setTimeout(() => {
+                    // Координаты кошелька в хедере
+                    const walletRect = document.getElementById('header-balance').getBoundingClientRect();
+                    const targetX = walletRect.left - (window.innerWidth / 2) + 10;
+                    const targetY = walletRect.top - (window.innerHeight / 2) + 10;
+
+                    coin.style.transform = `translate(${targetX}px, ${targetY}px) scale(0.5)`;
+                    coin.style.opacity = '0';
+                }, 100);
+
+                // Удаление
+                setTimeout(() => {
+                    coin.remove();
+                }, 900);
+            }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
