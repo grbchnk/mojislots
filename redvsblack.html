@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Red VS Black</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Подключаем Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap');
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: #0f172a;
+            color: #e2e8f0;
+            user-select: none;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.95); 
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        /* --- ГЛАВНАЯ СЦЕНА --- */
+        .game-stage {
+            position: relative;
+            flex: 1;
+            width: 100%;
+            overflow: hidden;
+            display: flex;
+            align-items: center; 
+        }
+
+        /* Размеры карт */
+        :root { --card-w: 120px; --card-h: 176px; }
+        @media (min-height: 700px) { :root { --card-w: 140px; --card-h: 206px; } }
+
+        /* КОЛОДА И КАРТЫ */
+        .deck-wrapper {
+            position: absolute; right: 30px; top: 50%; transform: translateY(-50%);
+            width: var(--card-w); height: var(--card-h); z-index: 10; 
+        }
+
+        .card-skin {
+            width: 100%; height: 100%;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 2px solid #475569; border-radius: 1rem;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.5);
+            position: relative; display: flex; align-items: center; justify-content: center;
+        }
+
+        .deck-stack {
+            box-shadow: -1px 1px 0 #334155, -2px 2px 0 #0f172a, -3px 3px 0 #334155, -4px 4px 0 #0f172a,
+                -5px 5px 0 #334155, -6px 6px 0 #0f172a, 0 10px 20px rgba(0,0,0,0.5);
+        }
+        .deck-text { transform: rotate(90deg); opacity: 0.1; font-weight: 900; font-size: 2rem; }
+
+        .pile-anchor {
+            position: absolute; left: 30px; top: 50%;
+            width: var(--card-w); height: var(--card-h);
+            transform: translateY(-50%); z-index: 20; 
+        }
+
+        .discard-pile { position: absolute; width: 100%; height: 100%; top: 0; left: 0; z-index: 5; }
+
+        .static-card {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            border-radius: 1rem; background: white; border: 2px solid #cbd5e1;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        .active-card {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            transform-style: preserve-3d; z-index: 100; will-change: transform;
+        }
+
+        .card-back {
+            position: absolute; width: 100%; height: 100%; backface-visibility: hidden;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 2px solid #475569; border-radius: 1rem;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.5); z-index: 2;
+        }
+
+        .card-front {
+            position: absolute; width: 100%; height: 100%; backface-visibility: hidden;
+            border-radius: 1rem; background: white; transform: rotateY(180deg);
+            border: 2px solid #cbd5e1; display: flex; align-items: center; justify-content: center; z-index: 1;
+        }
+
+        .corner { position: absolute; display: flex; flex-direction: column; align-items: center; line-height: 1; font-weight: bold; padding: 4px; }
+        .tl { top: 6px; left: 6px; }
+        .br { bottom: 6px; right: 6px; transform: rotate(180deg); }
+        .rank { font-size: 1.4rem; letter-spacing: -2px; }
+        .suit { font-size: 1.2rem; }
+        .center-sym { font-size: 4.5rem; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.2)); }
+
+        .result-badge {
+            position: absolute; left: 50%; top: 20px; 
+            transform: translateX(-50%) scale(0.5);
+            background-color: rgba(30, 41, 59, 0.95); backdrop-filter: blur(5px);
+            border: 2px solid #475569; box-shadow: 0 10px 25px rgba(0,0,0,0.8);
+            padding: 10px 30px; border-radius: 16px; text-align: center;
+            opacity: 0; transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 200; pointer-events: none;
+        }
+        .result-badge.show { opacity: 1; transform: translateX(-50%) scale(1); }
+
+        .history-wrapper {
+            width: 100%; display: flex; align-items: center; padding: 8px 12px;
+            background: #0f172a; border-bottom: 1px solid rgba(255,255,255,0.1);
+            position: relative; z-index: 60;
+        }
+        .history-list {
+            display: flex; align-items: center; width: 100%;
+            mask-image: linear-gradient(to right, black 70%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to right, black 70%, transparent 100%);
+        }
+        .history-bubble {
+            width: 36px; height: 36px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.9rem; font-weight: 800; flex-shrink: 0;
+            background: #1e293b; border: 2px solid #475569; margin-right: 8px;
+            opacity: 0.5; transform: scale(0.9); transition: all 0.4s ease;
+        }
+        .history-bubble:first-child {
+            width: 44px; height: 44px; opacity: 1; transform: scale(1);
+            border-color: #fff; box-shadow: 0 0 10px rgba(255,255,255,0.2); font-size: 1.1rem;
+        }
+        .bubble-enter { animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes slideIn { from { margin-right: 0; width: 0; opacity: 0; } to { margin-right: 8px; width: 44px; opacity: 1; } }
+
+        .btn-green { background: linear-gradient(180deg, #10b981 0%, #047857 100%); box-shadow: 0 4px 0 #064e3b; }
+        .btn-green:active:not(:disabled) { transform: translateY(4px); box-shadow: none; }
+        
+        .btn-orange { background: linear-gradient(180deg, #f97316 0%, #c2410c 100%); box-shadow: 0 4px 0 #7c2d12; }
+        .btn-orange:active:not(:disabled) { transform: translateY(4px); box-shadow: none; }
+
+        .btn-red { background: linear-gradient(180deg, #ef4444 0%, #991b1b 100%); box-shadow: 0 4px 0 #7f1d1d; }
+        .btn-red:active:not(:disabled) { transform: translateY(4px); box-shadow: none; }
+
+        .btn-black { background: linear-gradient(180deg, #334155 0%, #0f172a 100%); box-shadow: 0 4px 0 #020617; }
+        .btn-black:active:not(:disabled) { transform: translateY(4px); box-shadow: none; }
+
+        .control-btn { width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        
+        .coeff-tag { font-size: 0.65rem; background: rgba(0,0,0,0.3); padding: 1px 4px; border-radius: 4px; margin-top: 1px; font-weight: normal; line-height: 1; display: inline-block;}
+        .btn-label { display: flex; flex-direction: column; align-items: center; line-height: 1.1; }
+
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-200">
+
+    <!-- HEADER -->
+    <div class="w-full flex justify-between items-center px-4 py-3 bg-slate-950/50 border-b border-white/5 shrink-0 z-50">
+        <!-- КНОПКА ВОЗВРАТА В МЕНЮ -->
+        <button class="control-btn" onclick="goBack()">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        </button>
+        <h1 class="text-xl font-black italic tracking-tighter">Red VS Black</h1>
+        <button class="control-btn" onclick="game.toggleSound()" id="btn-sound">🔊</button>
+    </div>
+
+    <!-- STATS -->
+    <div class="w-full grid grid-cols-2 gap-2 px-2 py-2 shrink-0 bg-slate-900 z-40">
+        <div class="glass-panel rounded-lg py-1 flex flex-col items-center"><span class="text-[10px] text-slate-500 font-bold uppercase">Balance</span><span class="text-xl font-mono font-bold text-green-400" id="ui-balance">...</span></div>
+        <div class="glass-panel rounded-lg py-1 flex flex-col items-center"><span class="text-[10px] text-slate-500 font-bold uppercase">Win</span><span class="text-xl font-mono font-bold text-yellow-400" id="ui-win">0</span></div>
+    </div>
+
+    <!-- HISTORY BAR -->
+    <div class="history-wrapper shrink-0">
+        <div class="text-[10px] font-bold text-slate-500 mr-2 uppercase writing-mode-vertical">Last</div>
+        <div class="history-list" id="history-container"></div>
+    </div>
+
+    <!-- GAME STAGE -->
+    <div class="game-stage">
+        
+        <!-- ПЛАШКА РЕЗУЛЬТАТА -->
+        <div class="result-badge" id="result-badge">
+            <div id="res-title" class="text-2xl font-black uppercase tracking-widest text-white">WIN</div>
+            <div id="res-val" class="text-xs font-mono text-slate-400">+20</div>
+        </div>
+
+        <!-- СБРОС / ЛЕВАЯ СТОРОНА -->
+        <div class="pile-anchor" id="pile-anchor">
+            <div class="discard-pile" id="pile-container"></div>
+            <!-- Активная карта -->
+            <div class="active-card" id="active-card">
+                <div class="card-back"></div>
+                <div class="card-front">
+                    <div class="corner tl"><span class="rank">A</span><span class="suit">♥</span></div>
+                    <div class="center-sym">♥️</div>
+                    <div class="corner br"><span class="rank">A</span><span class="suit">♥</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- КОЛОДА / ПРАВАЯ СТОРОНА -->
+        <div class="deck-wrapper" id="deck-anchor">
+            <div class="deck-stack card-skin">
+                <div class="deck-text">DECK</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- CONTROLS -->
+    <div class="w-full glass-panel rounded-t-2xl p-4 mt-auto shrink-0 z-50">
+        
+        <!-- СТАВКА -->
+        <div class="flex items-center justify-between bg-slate-800/80 rounded-lg p-2 mb-3 border border-slate-700">
+            <button class="w-10 h-10 bg-slate-700 rounded font-bold text-xl active:scale-95 transition" onclick="game.adjustBet(-1)">-</button>
+            <div class="text-center">
+                <div class="text-[10px] text-slate-500 uppercase font-bold">BET AMOUNT</div>
+                <div class="text-lg font-mono font-bold text-white" id="ui-bet">20</div>
+            </div>
+            <button class="w-10 h-10 bg-slate-700 rounded font-bold text-xl active:scale-95 transition" onclick="game.adjustBet(1)">+</button>
+        </div>
+        
+        <!-- КНОПКИ В ОДИН РЯД -->
+        <div class="grid grid-cols-4 gap-2 h-14">
+            
+            <button id="btn-low" class="btn-orange rounded-xl font-bold text-white text-sm flex items-center justify-center disabled:opacity-50 disabled:grayscale transition-all" onclick="game.play('low')">
+                <div class="btn-label">
+                    <span>🔽 LO</span>
+                    <span class="coeff-tag" id="odds-low">x2.0</span>
+                </div>
+            </button>
+
+            <button id="btn-red" class="btn-red rounded-xl font-bold text-white text-sm flex items-center justify-center disabled:opacity-50 disabled:grayscale transition-all" onclick="game.play('red')">
+                <div class="btn-label">
+                    <span>🔴 RED</span>
+                    <span class="coeff-tag">x2.0</span>
+                </div>
+            </button>
+
+            <button id="btn-black" class="btn-black rounded-xl font-bold text-white text-sm flex items-center justify-center disabled:opacity-50 disabled:grayscale transition-all" onclick="game.play('black')">
+                <div class="btn-label">
+                    <span>⚫ BLK</span>
+                    <span class="coeff-tag">x2.0</span>
+                </div>
+            </button>
+
+            <button id="btn-high" class="btn-green rounded-xl font-bold text-white text-sm flex items-center justify-center disabled:opacity-50 disabled:grayscale transition-all" onclick="game.play('high')">
+                <div class="btn-label">
+                    <span>🔼 HI</span>
+                    <span class="coeff-tag" id="odds-high">x2.0</span>
+                </div>
+            </button>
+
+        </div>
+
+        <div id="status-text" class="text-center text-[10px] text-slate-500 font-bold uppercase mt-2 tracking-widest">Select option</div>
+    </div>
+
+    <script>
+        // === НАСТРОЙКИ SUPABASE (Те же ключи, что и в главном файле) ===
+        const SUPABASE_URL = 'https://ugkactbowbcxkwnovkwe.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_myr7kO9VcTIIuwVwRKWIAg_8Ee_-5Ga';
+        const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.enableClosingConfirmation();
+
+        // Функция возврата
+        function goBack() {
+            // Переход на главную страницу
+            window.location.href = 'index.html';
+        }
+
+        const RANKS = [
+            { v: 2, l: '2' }, { v: 3, l: '3' }, { v: 4, l: '4' }, { v: 5, l: '5' },
+            { v: 6, l: '6' }, { v: 7, l: '7' }, { v: 8, l: '8' }, { v: 9, l: '9' },
+            { v: 10, l: '10' }, { v: 11, l: 'J' }, { v: 12, l: 'Q' }, { v: 13, l: 'K' }, { v: 14, l: 'A' }
+        ];
+        const SUITS = [
+            { s: '♥', c: 'red', icon: '♥️' },
+            { s: '♦', c: 'red', icon: '♦️' },
+            { s: '♠', c: 'black', icon: '♠️' },
+            { s: '♣', c: 'black', icon: '♣️' }
+        ];
+
+        function createFullDeck() {
+            let d = [];
+            SUITS.forEach(suit => {
+                RANKS.forEach(rank => {
+                    d.push({
+                        val: rank.v,
+                        lbl: rank.l,
+                        suit: suit.s,
+                        color: suit.c,
+                        icon: suit.icon
+                    });
+                });
+            });
+            return d;
+        }
+
+        const BETS = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 500000];
+
+        const AudioSys = {
+            ctx: new (window.AudioContext || window.webkitAudioContext)(),
+            muted: localStorage.getItem('moji_sound') === 'false',
+            init() { if(this.ctx.state==='suspended') this.ctx.resume(); },
+            toggle() { this.muted = !this.muted; localStorage.setItem('moji_sound', !this.muted); return this.muted; },
+            tone(f,t,d,v=0.1) { if(this.muted)return; const o=this.ctx.createOscillator(),g=this.ctx.createGain();o.type=t;o.frequency.value=f;g.gain.value=v;g.gain.exponentialRampToValueAtTime(0.001,this.ctx.currentTime+d);o.connect(g);g.connect(this.ctx.destination);o.start();o.stop(this.ctx.currentTime+d); },
+            flip() { this.tone(300,'triangle',0.1); setTimeout(()=>this.tone(400,'triangle',0.1),80); },
+            win() { [500,700,900].forEach((f,i)=>setTimeout(()=>this.tone(f,'sine',0.3,0.2),i*100)); },
+            lose() { this.tone(150,'sawtooth',0.4,0.2); }
+        };
+
+        class Game {
+            constructor() {
+                // Берем баланс из локального хранилища для скорости
+                this.balance = parseInt(localStorage.getItem('jigu_bal_xl')) || 0;
+                this.bet = 20;
+                this.busy = false;
+                
+                // ID пользователя из Telegram
+                this.userId = tg.initDataUnsafe?.user?.id?.toString();
+
+                this.currentCard = null; 
+                this.deckData = createFullDeck();
+                this.lastRot = 0;
+
+                this.ui = {
+                    bal: document.getElementById('ui-balance'),
+                    win: document.getElementById('ui-win'),
+                    bet: document.getElementById('ui-bet'),
+                    card: document.getElementById('active-card'),
+                    pile: document.getElementById('pile-container'),
+                    hist: document.getElementById('history-container'),
+                    resBadge: document.getElementById('result-badge'),
+                    resTitle: document.getElementById('res-title'),
+                    resVal: document.getElementById('res-val'),
+                    deck: document.getElementById('deck-anchor'),
+                    pileAnchor: document.getElementById('pile-anchor'),
+                    status: document.getElementById('status-text'),
+                    // Buttons
+                    btnLow: document.getElementById('btn-low'),
+                    btnHigh: document.getElementById('btn-high'),
+                    btnRed: document.getElementById('btn-red'),
+                    btnBlack: document.getElementById('btn-black'),
+                    oddsLow: document.getElementById('odds-low'),
+                    oddsHigh: document.getElementById('odds-high')
+                };
+
+                this.ui.card.style.opacity = '0'; 
+                
+                // Инициализация карт
+                for(let i=0; i<9; i++) this.addToHistory(this.getRandomCard(), false);
+                const startCard = this.getRandomCard();
+                this.addToHistory(startCard, false);
+                this.currentCard = startCard;
+                this.lastRot = (Math.random() * 12) - 6;
+                this.addToPile(this.currentCard, this.lastRot);
+
+                this.updateUI();
+                this.calculateOdds();
+                
+                // Синхронизация с базой данных при старте
+                this.syncBalance();
+
+                document.body.addEventListener('click', ()=>AudioSys.init(), {once:true});
+            }
+
+            // === ФУНКЦИИ БАЗЫ ДАННЫХ ===
+            async syncBalance() {
+                if(!this.userId) return;
+                const { data, error } = await sb.from('players').select('balance').eq('tg_id', this.userId).single();
+                if(data) {
+                    this.balance = data.balance;
+                    localStorage.setItem('jigu_bal_xl', this.balance);
+                    this.updateUI();
+                }
+            }
+
+            async saveBalanceToDB() {
+                if(!this.userId) return;
+                
+                // Сначала берем текущее кол-во игр, чтобы увеличить его
+                const { data: player } = await sb.from('players').select('games_played').eq('tg_id', this.userId).single();
+                const games = (player?.games_played || 0) + 1;
+
+                // Обновляем баланс и счетчик игр
+                await sb.from('players').update({ 
+                    balance: this.balance,
+                    games_played: games 
+                }).eq('tg_id', this.userId);
+            }
+            // ===========================
+
+            getRandomCard() {
+                return this.deckData[Math.floor(Math.random() * this.deckData.length)];
+            }
+
+            calculateOdds() {
+                const v = this.currentCard.val;
+                
+                const countLow = v - 2; 
+                const countHigh = 14 - v; 
+                const total = 13; 
+                const rtp = 0.96; // Return to Player
+
+                // Кнопка Low
+                if (countLow <= 0) {
+                    this.ui.btnLow.disabled = true;
+                    this.ui.oddsLow.innerText = "-";
+                } else {
+                    this.ui.btnLow.disabled = this.busy;
+                    const prob = countLow / total;
+                    const mult = rtp / prob;
+                    this.ui.oddsLow.innerText = "x" + mult.toFixed(2);
+                    this.ui.btnLow.dataset.mult = mult;
+                }
+
+                // Кнопка High
+                if (countHigh <= 0) {
+                    this.ui.btnHigh.disabled = true;
+                    this.ui.oddsHigh.innerText = "-";
+                } else {
+                    this.ui.btnHigh.disabled = this.busy;
+                    const prob = countHigh / total;
+                    const mult = rtp / prob;
+                    this.ui.oddsHigh.innerText = "x" + mult.toFixed(2);
+                    this.ui.btnHigh.dataset.mult = mult;
+                }
+
+                this.ui.btnRed.disabled = this.busy;
+                this.ui.btnBlack.disabled = this.busy;
+            }
+
+            updateUI() {
+                this.ui.bal.innerText = this.balance.toLocaleString();
+                this.ui.bet.innerText = this.bet;
+                
+                if(!this.busy && this.currentCard) {
+                   this.calculateOdds();
+                } else {
+                    this.ui.btnLow.disabled = true;
+                    this.ui.btnHigh.disabled = true;
+                    this.ui.btnRed.disabled = true;
+                    this.ui.btnBlack.disabled = true;
+                }
+            }
+
+            adjustBet(d) {
+                if(this.busy) return;
+                let idx = BETS.indexOf(this.bet);
+                idx = Math.max(0, Math.min(BETS.length-1, idx+d));
+                this.bet = BETS[idx];
+                this.updateUI();
+            }
+
+            toggleSound() {
+                const m = AudioSys.toggle();
+                document.getElementById('btn-sound').innerText = m ? '🔇' : '🔊';
+            }
+
+            addToHistory(item, animate=true) {
+                const el = document.createElement('div');
+                el.className = 'history-bubble ' + (animate ? 'bubble-enter' : '');
+                el.innerText = item.lbl;
+                el.style.color = item.color === 'red' ? '#ef4444' : '#e2e8f0';
+                
+                if (this.ui.hist.firstChild) this.ui.hist.insertBefore(el, this.ui.hist.firstChild);
+                else this.ui.hist.appendChild(el);
+                
+                if (this.ui.hist.children.length > 15) this.ui.hist.lastChild.remove();
+            }
+
+            addToPile(item, rot) {
+                const c = document.createElement('div');
+                c.className = 'static-card';
+                c.innerHTML = `
+                    <div class="corner tl"><span class="rank">${item.lbl}</span><span class="suit">${item.suit}</span></div>
+                    <div class="center-sym" style="color:${item.color==='red'?'#ef4444':'black'}">${item.icon}</div>
+                    <div class="corner br"><span class="rank">${item.lbl}</span><span class="suit">${item.suit}</span></div>
+                `;
+                c.style.color = item.color==='red'?'#ef4444':'black';
+                c.style.transform = `rotate(${-rot}deg)`;
+                
+                if(this.ui.pile.children.length > 5) this.ui.pile.firstChild.remove();
+                this.ui.pile.appendChild(c);
+            }
+
+            async play(choice) {
+                if(this.busy || this.balance < this.bet) {
+                    if(this.balance < this.bet) tg.HapticFeedback.notificationOccurred('error');
+                    return;
+                }
+                
+                tg.HapticFeedback.impactOccurred('medium');
+
+                let mult = 0;
+                if(choice === 'low') mult = parseFloat(this.ui.btnLow.dataset.mult);
+                else if(choice === 'high') mult = parseFloat(this.ui.btnHigh.dataset.mult);
+                else mult = 2.0;
+
+                this.busy = true;
+                this.balance -= this.bet; // Списываем ставку
+                localStorage.setItem('jigu_bal_xl', this.balance); // Сохраняем сразу локально
+                
+                this.ui.win.innerText = "0";
+                this.ui.resBadge.classList.remove('show');
+                this.ui.status.innerText = "DEALING...";
+                this.updateUI(); 
+
+                const deckRect = this.ui.deck.getBoundingClientRect();
+                const pileRect = this.ui.pileAnchor.getBoundingClientRect();
+                const startX = deckRect.left - pileRect.left;
+                
+                const nextCard = this.getRandomCard();
+                const newRot = (Math.random() * 10) - 5; 
+
+                const card = this.ui.card;
+                card.style.opacity = '1';
+                card.style.transition = 'none';
+                card.style.transform = `translateX(${startX}px) rotateY(0deg) rotateZ(0deg)`;
+                
+                const front = card.querySelector('.card-front');
+                front.style.color = nextCard.color === 'red' ? '#ef4444' : 'black';
+                card.querySelectorAll('.rank').forEach(r => r.innerText = nextCard.lbl);
+                card.querySelectorAll('.suit').forEach(s => s.innerText = nextCard.suit);
+                card.querySelector('.center-sym').innerText = nextCard.icon;
+
+                void card.offsetWidth; 
+
+                // Полет
+                await new Promise(r => setTimeout(r, 50));
+                AudioSys.flip();
+                
+                card.style.transition = 'transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)';
+                card.style.transform = `translateX(0px) rotateY(180deg) rotateZ(${newRot}deg)`;
+
+                await new Promise(r => setTimeout(r, 750));
+
+                const oldVal = this.currentCard.val;
+                const newVal = nextCard.val;
+                let win = false;
+
+                if (choice === 'high' && newVal > oldVal) win = true;
+                else if (choice === 'low' && newVal < oldVal) win = true;
+                else if (choice === 'red' && nextCard.color === 'red') win = true;
+                else if (choice === 'black' && nextCard.color === 'black') win = true;
+
+                if (win) {
+                    const totalPayout = Math.floor(this.bet * mult);
+                    this.balance += totalPayout;
+                    
+                    localStorage.setItem('jigu_bal_xl', this.balance);
+                    
+                    this.ui.win.innerText = totalPayout;
+                    this.ui.resTitle.innerText = "WIN";
+                    this.ui.resTitle.className = "text-2xl font-black uppercase tracking-widest text-green-400";
+                    this.ui.resVal.innerText = `+${totalPayout}`;
+                    AudioSys.win();
+                    tg.HapticFeedback.notificationOccurred('success');
+                    confetti({ particleCount: 50, spread: 60, origin: { y: 0.5 }, colors: nextCard.color==='red'?['#ef4444']:['#fff'] });
+                } else {
+                    this.ui.resTitle.innerText = "LOSE";
+                    this.ui.resTitle.className = "text-2xl font-black uppercase tracking-widest text-slate-500";
+                    this.ui.resVal.innerText = `-${this.bet}`;
+                    AudioSys.lose();
+                }
+
+                // === ОТПРАВЛЯЕМ ОБНОВЛЕННЫЙ БАЛАНС В БАЗУ ===
+                this.saveBalanceToDB();
+                // ============================================
+
+                this.ui.resBadge.classList.add('show');
+                
+                this.addToPile(nextCard, newRot);
+                card.style.opacity = '0'; 
+                
+                this.addToHistory(nextCard);
+
+                this.currentCard = nextCard; 
+                this.lastRot = newRot;
+
+                this.busy = false;
+                this.updateUI();
+                this.ui.status.innerText = "SELECT OPTION";
+            }
+        }
+
+        window.game = new Game();
+    </script>
+</body>
+</html>
