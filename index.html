@@ -145,9 +145,27 @@
 
                     <div class="absolute bottom-0 left-0 w-full p-4 z-20 flex justify-between items-end">
                         <div>
-                            <span class="px-2 py-0.5 rounded bg-pink-500 text-[9px] font-black text-white uppercase shadow-lg mb-1 inline-block">HOT</span>
+                            <span class="px-1.5 py-0.5 rounded bg-red-600 text-[8px] font-black text-white uppercase shadow mb-1 inline-block">HOT</span>
                             <h3 class="text-2xl font-black text-white drop-shadow-md leading-none">BoomShake</h3>
                             <p class="text-[10px] text-slate-300 font-bold mt-1">Сочно. Мощно. Взрывоопасно.</p>
+                        </div>
+                        <button class="w-12 h-12 rounded-full bg-yellow-400 text-yellow-900 flex items-center justify-center text-2xl shadow-[0_0_15px_rgba(250,204,21,0.6)] hover:scale-110 transition">▶</button>
+                    </div>
+                </div>
+
+                <div onclick="openGame('heartscrush.html')" class="game-card shiny-effect group w-full aspect-[1.79/1] rounded-2xl bg-pink-900 relative cursor-pointer border border-pink-700 hover:border-purple-500/50">
+                    
+                    <!-- Картинка -->
+                    <div class="absolute inset-0 bg-[url('img/heartscrush.png')] bg-cover bg-center opacity-80 group-hover:opacity-100 transition group-hover:scale-105 duration-700"></div>
+                    
+                    <!-- Градиент снизу, чтобы текст читался на любой картинке -->
+                    <div class="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-black/90 to-transparent pointer-events-none"></div>
+
+                    <div class="absolute bottom-0 left-0 w-full p-4 z-20 flex justify-between items-end">
+                        <div>
+                            <span class="px-2 py-0.5 rounded bg-pink-500 text-[9px] font-black text-white uppercase shadow-lg mb-1 inline-block">NEW</span>
+                            <h3 class="text-2xl font-black text-white drop-shadow-md leading-none">Hearts Crush</h3>
+                            <p class="text-[10px] text-slate-300 font-bold mt-1">Любовь такая любовь...</p>
                         </div>
                         <button class="w-12 h-12 rounded-full bg-yellow-400 text-yellow-900 flex items-center justify-center text-2xl shadow-[0_0_15px_rgba(250,204,21,0.6)] hover:scale-110 transition">▶</button>
                     </div>
@@ -157,9 +175,8 @@
                 <div class="grid grid-cols-2 gap-3">
                     <!-- Stub 1 -->
     
-                    <!-- НОВАЯ ИГРА: HI-LO -->
                     <!-- НОВАЯ ИГРА: RED VS BLACK -->
-                    <div onclick="openGame('redvsblack.html')" class="game-card w-full aspect-square rounded-2xl bg-slate-800 relative cursor-pointer border border-slate-700 hover:border-red-500/50 group overflow-hidden">
+                    <div onclick="openGame('redvsblack.html')" class="game-card shiny-effect w-full aspect-square rounded-2xl bg-slate-800 relative cursor-pointer border border-slate-700 hover:border-red-500/50 group overflow-hidden">
                         
                         <!-- Картинка на фоне (с зумом при наведении) -->
                         <div class="absolute inset-0 bg-[url('img/redvsblack.png')] bg-cover bg-center transition duration-700 group-hover:scale-110"></div>
@@ -177,6 +194,8 @@
                         <!-- Блик (оставляем для красоты) -->
                         <div class="absolute top-0 right-0 w-full h-full bg-gradient-to-bl from-white/10 to-transparent pointer-events-none"></div>
                     </div>
+
+                    
                     <!-- Stub 2 -->
                     <!-- GAME: LUXURY POO -->
                     <div onclick="openGame('luxurypoo.html')" class="game-card shiny-effect group w-full aspect-square rounded-2xl bg-[#271005] relative cursor-pointer border border-amber-900 hover:border-amber-500 overflow-hidden">
