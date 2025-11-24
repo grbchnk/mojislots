@@ -248,7 +248,9 @@
                     <span class="text-slate-500 text-xs opacity-50">✎</span>
                 </div>
                 
-                <span class="px-3 py-1 bg-slate-800 rounded-full text-[10px] font-bold text-yellow-400 border border-yellow-400/30 mt-1">LEVEL 1</span>
+                <div id="profile-rank-badge" class="px-3 py-1 rounded-full text-[10px] font-bold border mt-2 transition-all duration-300 shadow-lg text-center min-w-[100px]">
+                    Загрузка...
+                </div>
             </div>
             <div class="grid grid-cols-2 gap-3 mb-6">
                 <div class="glass-panel p-4 rounded-2xl flex flex-col items-center">
@@ -527,7 +529,8 @@
             if (!sb) return [];
             const { data, error } = await sb
                 .from('players')
-                .select('username, balance, avatar_url') // <--- ДОБАВИЛ avatar_url
+                // ДОБАВИЛ games_played В ЗАПРОС 👇
+                .select('username, balance, avatar_url, games_played') 
                 .order('balance', { ascending: false })
                 .limit(10);
             return data || [];
@@ -583,10 +586,16 @@
                         <div class="flex items-center gap-3">
                             <div class="text-sm font-black w-6 text-center text-slate-400">${medal}</div>
                             
-                            <!-- Вставляем готовый HTML аватара -->
                             ${avatarHTML}
                             
-                            <div class="font-bold text-white text-sm truncate max-w-[110px]">${player.username}</div>
+                            <div class="flex flex-col justify-center">
+                                <div class="font-bold text-white text-sm truncate max-w-[110px] leading-tight">${player.username}</div>
+                                
+                                <!-- РАНГ В ЛИДЕРАХ -->
+                                <span class="text-[8px] px-1.5 py-0.5 rounded-md border w-fit mt-0.5 opacity-90 ${rankInfo.style}">
+                                    ${rankInfo.title}
+                                </span>
+                            </div>
                         </div>
                         <div class="font-mono text-yellow-400 font-bold text-sm tracking-tight">
                             ${player.balance.toLocaleString('ru-RU')}
@@ -598,7 +607,70 @@
             html += '</div>';
             listContainer.innerHTML = html;
         }
+        
+        function getPlayerRank(gamesPlayed) {
+            const count = parseInt(gamesPlayed) || 0;
 
+            // 50k+ — Самый топ (Градиент золота и огня)
+            if (count >= 50000) return { 
+                title: '👑 Император Азарта', 
+                style: 'bg-gradient-to-r from-yellow-600 via-orange-500 to-red-600 text-white border-none shadow-[0_0_20px_rgba(234,179,8,0.6)] animate-pulse' 
+            };
+
+            // 20k+ — Очень богатый статус (Фиолетовый/Неон)
+            if (count >= 20000) return { 
+                title: '🧞‍♂️ Джинн', 
+                style: 'bg-gradient-to-r from-purple-600 to-blue-600 text-white border-none shadow-[0_0_10px_rgba(147,51,234,0.5)]' 
+            };
+
+            // 10k+ — Агрессивный игрок (Кроваво-красный)
+            if (count >= 10000) return { 
+                title: '🦈 Акула', 
+                style: 'bg-red-950 text-red-100 border-red-500 shadow-sm' 
+            };
+
+            // 5k+ — Классика казино (Темно-зеленый, цвет сукна)
+            if (count >= 5000) return { 
+                title: '🎩 Хайроллер', 
+                style: 'bg-emerald-900 text-emerald-100 border-emerald-500/50' 
+            };
+
+            // 3k+ — ТВОЙ ЗАПРОС (Оранжевый/Предупреждающий)
+            if (count >= 3000) return { 
+                title: '🥴 Лудоман', 
+                style: 'bg-orange-900 text-orange-100 border-orange-500/50' 
+            };
+
+            // 1k+ — Уверенный середняк (Синий)
+            if (count >= 1000) return { 
+                title: '🃏 Профи', 
+                style: 'bg-blue-900 text-blue-100 border-blue-500/50' 
+            };
+
+            // 500+ — Начало серьезной игры (Циан)
+            if (count >= 500) return { 
+                title: '🍀 Фартовый', 
+                style: 'bg-cyan-900 text-cyan-100 border-cyan-500/50' 
+            };
+
+            // 150+ — Уже не новичок (Зеленоватый)
+            if (count >= 150) return { 
+                title: '🏃‍♂️ Активный', 
+                style: 'bg-teal-900 text-teal-100 border-teal-500/30' 
+            };
+
+            // 50+ — Первый шаг (Серо-синий)
+            if (count >= 50) return { 
+                title: '🎲 Посетитель', 
+                style: 'bg-slate-800 text-slate-200 border-slate-600/50' 
+            };
+            
+            // < 50 — ТВОЙ ЗАПРОС (Серый)
+            return { 
+                title: '🐣 Новичок', 
+                style: 'bg-gray-800 text-gray-400 border-gray-700/30' 
+            };
+        }
         // === ИНИЦИАЛИЗАЦИЯ ===
         async function initApp() {
             tg.expand();
@@ -760,7 +832,6 @@
         async function refreshPlayerData() {
             if (!sb || !currentUserTgId) return;
 
-            // Запрашиваем свежие данные из базы
             const { data: player, error } = await sb
                 .from('players')
                 .select('*')
@@ -768,16 +839,23 @@
                 .single();
 
             if (player && !error) {
-                // Обновляем баланс, если он изменился
                 localStorage.setItem('jigu_bal_xl', player.balance);
                 updateBalanceUI();
                 
-                // Обновляем счетчик сыгранных игр (если он есть)
-                if (typeof updateGamesPlayedUI === 'function') {
-                    updateGamesPlayedUI(player.games_played || 0);
-                }
+                // === ОБНОВЛЕНИЕ РАНГА В ПРОФИЛЕ ===
+                const gamesCount = player.games_played || 0;
+                updateGamesPlayedUI(gamesCount); // Обновляем цифру игр
 
-                // 🔥 ПРОВЕРЯЕМ НАГРАДЫ
+                // Вычисляем ранг
+                const rank = getPlayerRank(gamesCount);
+                const badgeEl = document.getElementById('profile-rank-badge');
+                
+                if (badgeEl) {
+                    badgeEl.className = `px-3 py-1 rounded-full text-[10px] font-bold border mt-2 transition-all duration-300 shadow-lg text-center min-w-[100px] ${rank.style}`;
+                    badgeEl.innerText = rank.title.toUpperCase();
+                }
+                // ===================================
+
                 await checkReferralRewards(player);
             }
         }
