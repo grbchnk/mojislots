@@ -295,11 +295,11 @@
                 { id: 7, val: '💍', payout: 250, weight: 20 }, 
                 { id: 6, val: '🧸', payout: 100, weight: 30 }, 
                 { id: 5, val: '🌹', payout: 50, weight: 40 }, 
-                { id: 4, val: '💚', payout: 15, weight: 50 }, 
-                { id: 3, val: '💛', payout: 15, weight: 50 },  
-                { id: 2, val: '💜', payout: 15, weight: 50 },  
-                { id: 1, val: '💙', payout: 15, weight: 50 },  
-                { id: 0, val: '❤️', payout: 15, weight: 50 }   
+                { id: 4, val: '💚', payout: 10, weight: 50 }, 
+                { id: 3, val: '💛', payout: 10, weight: 50 },  
+                { id: 2, val: '💜', payout: 10, weight: 50 },  
+                { id: 1, val: '💙', payout: 10, weight: 50 },  
+                { id: 0, val: '❤️', payout: 10, weight: 50 }   
             ];
             const BET_VALUES = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
             
@@ -548,7 +548,7 @@
                         // Сохраняем в БД (Списание + +1 игра)
                         this.saveBalanceToDB(this.balance, true); 
                         
-                        document.getElementById('status-text').innerText = "УДАЧИ!";
+                        document.getElementById('status-text').innerText = "ЛЮБВИ!";
                     }
                     document.getElementById('ui-balance').innerText = this.balance; 
 
@@ -563,9 +563,9 @@
                     if(scatterCount >= 3) {
                         AudioSys.bonus();
                         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#ec4899', '#fff'] });
-                        this.freeSpins += 10;
+                        this.freeSpins += 20;
                         document.getElementById('fs-count').innerText = this.freeSpins;
-                        document.getElementById('status-text').innerText = "БОНУС! +10 SPINS";
+                        document.getElementById('status-text').innerText = "БОНУС! +20 SPINS";
                         if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
                         await new Promise(r => setTimeout(r, 1500));
                     }
@@ -736,4 +736,5 @@
             window.game = new SlotMachine();
     </script>
 </body>
+
 </html>
