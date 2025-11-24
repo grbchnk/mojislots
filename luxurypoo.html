@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LUXURY POO: Royal Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Подключаем Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Lato:wght@400;700&display=swap');
+
+        :root {
+            --reel-height: 100px;
+            --symbol-sz: 3rem;
+        }
+
+        body {
+            font-family: 'Lato', sans-serif;
+            background-color: #0f0510;
+            background-image: 
+                radial-gradient(circle at 50% 0%, #4a1d46 0%, transparent 60%),
+                repeating-linear-gradient(45deg, rgba(255, 215, 0, 0.03) 0px, rgba(255, 215, 0, 0.03) 1px, transparent 1px, transparent 10px);
+            color: #fef3c7;
+            user-select: none;
+            overflow-y: auto;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* --- ГЛАВНАЯ РАМКА --- */
+        .gold-frame {
+            background: linear-gradient(135deg, #451a03 0%, #271005 100%);
+            border-radius: 16px;
+            box-shadow: 
+                0 20px 50px rgba(0,0,0,0.8),
+                inset 0 0 0 2px #78350f,
+                inset 0 0 0 4px #fcd34d, 
+                inset 0 0 0 6px #b45309;
+            position: relative;
+            padding: 6px;
+            margin-bottom: 10px;
+            z-index: 10;
+        }
+
+        .slot-window {
+            background: #150505;
+            border-radius: 10px;
+            box-shadow: inset 0 0 30px #000;
+            overflow: hidden;
+            position: relative;
+            aspect-ratio: 5 / 3;
+            width: 100%;
+        }
+
+        /* --- ЛИНИИ ВЫПЛАТ --- */
+        .payline-path {
+            fill: none; 
+            stroke-width: 4; 
+            stroke-linecap: round; 
+            stroke-linejoin: round;
+            filter: drop-shadow(0 0 5px rgba(0,0,0,1));
+            opacity: 0.9;
+            vector-effect: non-scaling-stroke;
+            z-index: 20;
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: drawLine 0.8s forwards ease-in-out;
+        }
+
+        @keyframes drawLine { to { stroke-dashoffset: 0; } }
+
+        /* --- СИМВОЛЫ --- */
+        .slot-symbol {
+            height: var(--reel-height);
+            width: 100%;
+            display: flex; align-items: center; justify-content: center;
+            padding: 4px; 
+            box-sizing: border-box;
+        }
+
+        .symbol-card {
+            width: 100%; height: 100%;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: var(--symbol-sz);
+            transition: transform 0.2s;
+            background: transparent; 
+            border: none;
+            box-shadow: none;
+            position: relative;
+            z-index: 10;
+        }
+
+        .style-toilet {
+            background: linear-gradient(135deg, #fcd34d 0%, #b45309 100%);
+            border: 2px solid #fffbeb;
+            box-shadow: 0 0 10px rgba(251, 191, 36, 0.4);
+            color: #000;
+        }
+        .style-poo {
+            background: radial-gradient(circle, #5d2808 0%, #2e1003 100%);
+            border: 1px solid #3f1807;
+        }
+        .style-high {
+            background: linear-gradient(to bottom, #4a1d46, #2d0b2e);
+            border: 1px solid #d8b4fe;
+        }
+
+        .win-box .symbol-card {
+            background: rgba(16, 185, 129, 0.2) !important;
+            border: 2px solid #34d399 !important;
+            box-shadow: 0 0 10px #34d399, inset 0 0 5px #34d399 !important;
+            opacity: 1 !important;
+            z-index: 20;
+            transition: all 0.5s ease-out; 
+        }
+
+        .poo-damage-box .symbol-card {
+            background: rgba(220, 38, 38, 0.3) !important;
+            border: 2px solid #ef4444 !important;
+            box-shadow: 0 0 15px #ef4444;
+            animation: shake-hard 0.4s;
+            z-index: 20;
+        }
+
+        /* --- UI --- */
+        .luxury-panel {
+            background: rgba(20, 5, 20, 0.9);
+            border: 1px solid rgba(251, 191, 36, 0.3);
+            border-radius: 16px;
+            backdrop-filter: blur(5px);
+        }
+
+        .title-gradient {
+            font-family: 'Cinzel', serif;
+            background: linear-gradient(to bottom, #fffbeb 0%, #fbbf24 40%, #b45309 100%);
+            -webkit-background-clip: text; color: transparent;
+        }
+
+        /* 3D SPIN BUTTON */
+        .spin-btn {
+            background: radial-gradient(circle at 30% 30%, #f59e0b 0%, #b45309 60%, #451a03 100%);
+            border: 3px solid #fcd34d;
+            border-radius: 50%;
+            width: 85px; height: 85px;
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-family: 'Cinzel', serif; font-weight: 900;
+            position: relative;
+            box-shadow: 0 6px 0 #78350f, 0 15px 20px rgba(0,0,0,0.4), inset 0 5px 10px rgba(255,255,255,0.3);
+            transition: all 0.1s;
+            transform: translateY(0);
+            margin: 0 auto;
+            z-index: 50;
+        }
+        
+        .spin-btn:active:not(:disabled) { 
+            transform: translateY(6px);
+            box-shadow: 0 0 0 #78350f, 0 5px 5px rgba(0,0,0,0.4), inset 0 0 15px rgba(0,0,0,0.5);
+            border-color: #b45309;
+        }
+        
+        .spin-btn:disabled { 
+            filter: grayscale(1); opacity: 0.6; transform: translateY(6px); box-shadow: 0 0 0 #78350f; cursor: not-allowed;
+        }
+
+        .ctrl-btn {
+            background: #271005;
+            border: 1px solid #78350f;
+            color: #fbbf24;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        .ctrl-btn.active {
+            background: #b45309;
+            color: #fff;
+            border-color: #fcd34d;
+            box-shadow: 0 0 8px #fbbf24;
+        }
+        .ctrl-btn:disabled { opacity: 0.5; filter: grayscale(1); }
+
+        @keyframes shake-hard { 0% { transform: translate(1px, 1px) rotate(0deg); } 20% { transform: translate(-3px, 0px) rotate(1deg); } 40% { transform: translate(1px, -1px) rotate(1deg); } 60% { transform: translate(-3px, 1px) rotate(0deg); } 80% { transform: translate(-1px, -1px) rotate(1deg); } 100% { transform: translate(0, 0) rotate(0deg); } }
+        
+        .shake-screen { animation: shake-hard 0.5s ease-in-out; }
+
+        .float-text { position: absolute; top: 50%; left: 50%; font-family: 'Cinzel', serif; font-weight: 900; z-index: 100; animation: floatPop 2s ease-out forwards; pointer-events: none; white-space: nowrap; font-size: 2.5rem; text-shadow: 0 0 10px #000; }
+        @keyframes floatPop { 0% { transform: translate(-50%, -50%) scale(0); opacity: 0; } 20% { transform: translate(-50%, -100%) scale(1.2); opacity: 1; } 100% { transform: translate(-50%, -250%) scale(1); opacity: 0; } }
+        .text-gold { color: #fffbeb; text-shadow: 0 0 10px #f59e0b; }
+        .text-poo { color: #fca5a5; text-shadow: 0 0 10px #ef4444; }
+    </style>
+</head>
+<body class="w-full min-h-screen py-2">
+
+    <!-- HEADER -->
+    <div class="w-full max-w-2xl flex justify-between items-center px-4 mb-2 z-20">
+        <!-- Кнопка ВЫХОДА возвращает в index.html -->
+        <button class="w-8 h-8 flex items-center justify-center rounded-full border border-amber-800 bg-black/50 text-amber-500" onclick="goHome()">✕</button>
+        <div class="text-center">
+            <span class="text-[10px] text-amber-500 tracking-[0.3em] font-bold uppercase block">Royal Edition</span>
+            <h1 class="text-3xl font-black italic tracking-tighter leading-none title-gradient drop-shadow-lg">
+                LUXURY<span class="text-white">POO</span>
+            </h1>
+        </div>
+        <div class="flex gap-2">
+            <button class="w-8 h-8 flex items-center justify-center rounded-full border border-amber-800 bg-black/50 text-amber-500" onclick="game.togglePaytable()">i</button>
+            <button class="w-8 h-8 flex items-center justify-center rounded-full border border-amber-800 bg-black/50 text-amber-500" onclick="game.toggleSound()" id="btn-sound">🔊</button>
+        </div>
+    </div>
+
+    <!-- MAIN GAME AREA -->
+    <div id="game-wrapper" class="relative w-full max-w-2xl px-2 mt-2">
+
+        <!-- BONUS STRIP -->
+        <!-- BONUS STRIP -->
+        <!-- Теперь по умолчанию скрыт (hidden) и не занимает место -->
+        <div id="bonus-wrapper" class="hidden w-full mb-2 justify-center z-50">
+             <div id="bonus-strip" class="h-auto bg-gradient-to-r from-yellow-700 via-yellow-400 to-yellow-700 text-black font-black py-2 px-4 rounded shadow-[0_5px_15px_rgba(0,0,0,0.5)] border-2 border-white flex items-center gap-4">
+                <span class="text-2xl">🎰</span>
+                
+                <div class="flex flex-col items-center justify-center leading-none">
+                    <span class="text-[10px] font-bold opacity-80 mb-0.5">SPINS</span>
+                    <span id="fs-counter" class="text-2xl font-black text-red-900 leading-none">5</span>
+                </div>
+                
+                <div class="w-[2px] h-8 bg-black/20 rounded"></div>
+
+                <div class="flex flex-col items-center justify-center leading-none min-w-[70px]">
+                    <span class="text-[10px] font-bold opacity-80 mb-0.5">TOTAL WIN</span>
+                    <span id="bonus-total-win" class="text-2xl font-black text-green-900 leading-none">0</span>
+                </div>
+                <span class="text-2xl">🎰</span>
+             </div>
+        </div>
+
+        <!-- SCOREBOARD -->
+        <div class="flex justify-between items-end px-6 mb-[-15px] relative z-0">
+            <div class="bg-black/80 border border-amber-700/50 rounded-t-xl px-4 py-1 pb-4 min-w-[100px] text-center backdrop-blur-md shadow-lg">
+                <div class="text-[9px] text-amber-400/70 uppercase tracking-widest font-serif">Credit</div>
+                <div class="text-xl font-mono text-amber-100 drop-shadow-md" id="ui-balance">...</div>
+            </div>
+            <div class="bg-black/80 border border-amber-700/50 rounded-t-xl px-4 py-1 pb-4 min-w-[100px] text-center backdrop-blur-md shadow-lg">
+                <div class="text-[9px] text-amber-400/70 uppercase tracking-widest font-serif">Win</div>
+                <div class="text-xl font-mono text-yellow-300 drop-shadow-[0_0_5px_gold]" id="ui-win">0</div>
+            </div>
+        </div>
+
+        <!-- SLOT FRAME -->
+        <div class="gold-frame w-full relative z-10">
+            <div class="slot-window">
+                <svg id="paylines-svg" class="absolute top-0 left-0 w-full h-full z-[20] pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+
+                <div class="grid grid-cols-5 h-full w-full relative z-[10]" id="slot-machine">
+                    <!-- JS fills this -->
+                </div>
+
+                <div class="absolute inset-0 pointer-events-none flex z-[15]">
+                    <div class="flex-1 border-r border-amber-900/20"></div>
+                    <div class="flex-1 border-r border-amber-900/20"></div>
+                    <div class="flex-1 border-r border-amber-900/20"></div>
+                    <div class="flex-1 border-r border-amber-900/20"></div>
+                    <div class="flex-1"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONTROLS -->
+        <div class="luxury-panel mt-4 p-3 pb-6 w-full flex flex-col gap-2 relative z-20">
+            
+            <!-- Lines Selection -->
+            <div class="flex flex-col items-center w-full mb-1">
+                <div class="text-[9px] text-amber-600 font-bold uppercase tracking-widest mb-1">Select Lines</div>
+                <div class="flex gap-1 w-full justify-between max-w-sm" id="lines-control-panel">
+                    <button class="ctrl-btn flex-1 h-8 text-[10px] font-bold" onclick="game.setLines(1)">1</button>
+                    <button class="ctrl-btn flex-1 h-8 text-[10px] font-bold" onclick="game.setLines(3)">3</button>
+                    <button class="ctrl-btn flex-1 h-8 text-[10px] font-bold active" onclick="game.setLines(5)">5</button>
+                    <button class="ctrl-btn flex-1 h-8 text-[10px] font-bold" onclick="game.setLines(7)">7</button>
+                    <button class="ctrl-btn flex-1 h-8 text-[10px] font-bold" onclick="game.setLines(9)">9</button>
+                </div>
+            </div>
+
+            <!-- Main Controls -->
+            <div class="flex items-center justify-between gap-2 mt-1">
+                <!-- Bet -->
+                <div class="flex flex-col items-center w-1/3">
+                    <div class="text-[9px] text-amber-500 font-bold uppercase mb-1">Total Bet: <span id="ui-total-bet" class="text-amber-100">100</span></div>
+                    <div class="flex items-center gap-1 w-full justify-center bg-black/30 rounded-lg p-1">
+                        <button class="bet-ctrl ctrl-btn w-8 h-8 font-bold" onclick="game.adjustBet(-1)">-</button>
+                        <span class="text-sm font-bold text-amber-200 w-8 text-center" id="ui-bet">20</span>
+                        <button class="bet-ctrl ctrl-btn w-8 h-8 font-bold" onclick="game.adjustBet(1)">+</button>
+                    </div>
+                </div>
+
+                <!-- Spin Button -->
+                <div class="relative z-30 transform translate-y-4">
+                    <button id="btn-spin" onclick="game.spin()" class="spin-btn group">
+                        <span class="drop-shadow-md tracking-wider text-sm pointer-events-none relative z-10" id="spin-text">SPIN</span>
+                    </button>
+                </div>
+
+                <!-- Auto -->
+                <div class="flex flex-col items-center w-1/3">
+                    <div class="text-[9px] text-amber-500 font-bold uppercase mb-1">Mode</div>
+                    <button id="btn-auto" onclick="game.toggleAuto()" class="ctrl-btn w-full h-[42px] text-[10px] font-bold flex items-center justify-center gap-1 bg-black/30">
+                        <span>♻️</span> AUTO
+                    </button>
+                </div>
+            </div>
+            
+            <div class="text-center mt-3">
+                 <span id="status-text" class="text-[10px] font-serif font-bold text-amber-600/60 uppercase tracking-[0.5em]">Good Luck</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- PAYTABLE MODAL -->
+    <div id="paytable-modal" class="fixed inset-0 z-[70] hidden flex items-center justify-center bg-black/90 backdrop-blur-md" onclick="game.togglePaytable()">
+        <div class="luxury-panel p-5 m-4 w-full max-w-md max-h-[85vh] overflow-y-auto relative" onclick="event.stopPropagation()">
+            <button class="absolute top-2 right-2 text-amber-500 font-bold text-xl" onclick="game.togglePaytable()">✕</button>
+            <h2 class="text-center text-xl font-black title-gradient mb-4 uppercase">Paytable</h2>
+            <div id="legend-grid-modal" class="flex flex-col gap-2"></div>
+        </div>
+    </div>
+
+    <script>
+        // === DB CONNECTION ===
+        const SUPABASE_URL = 'https://ugkactbowbcxkwnovkwe.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_myr7kO9VcTIIuwVwRKWIAg_8Ee_-5Ga';
+        const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        const tg = window.Telegram.WebApp; 
+        tg.expand();
+        tg.setHeaderColor('#451a03');
+
+        // Глобальная функция выхода
+        function goHome() {
+            window.location.href = 'index.html';
+        }
+
+        // --- CONFIG ---
+        const ASSETS = [
+            { id: 10, val: '🤑', payout: 0, weight: 10 },  // WILD
+            { id: 8, val: '🚽', payout: 0, weight: 15 },  // SCATTER
+            { id: 7, val: '🧻', payout: 250, weight: 8 },  
+            { id: 6, val: '☢️', payout: 100, weight: 12 }, 
+            { id: 5, val: '💨', payout: 50, weight: 15 },  
+            { id: 4, val: '🤢', payout: 30, weight: 20 },  
+            { id: 3, val: '🧼', payout: 20, weight: 25 },  
+            { id: 2, val: '🦠', payout: 10, weight: 30 },  
+            { id: 0, val: '💩', weight: 40, isPoop: true } 
+        ];
+        const SCATTER_PAYOUTS = { 3: 50, 4: 200, 5: 1000 };
+
+        const LINES_MAP = [
+            { idx: 0, color: '#f59e0b', path: [1, 1, 1, 1, 1] },
+            { idx: 1, color: '#f59e0b', path: [0, 0, 0, 0, 0] },
+            { idx: 2, color: '#f59e0b', path: [2, 2, 2, 2, 2] },
+            { idx: 3, color: '#10b981', path: [0, 1, 2, 1, 0] },
+            { idx: 4, color: '#3b82f6', path: [2, 1, 0, 1, 2] },
+            { idx: 5, color: '#a855f7', path: [0, 0, 1, 2, 2] },
+            { idx: 6, color: '#ec4899', path: [2, 2, 1, 0, 0] },
+            { idx: 7, color: '#06b6d4', path: [1, 0, 0, 0, 1] },
+            { idx: 8, color: '#6366f1', path: [1, 2, 2, 2, 1] }  
+        ]; 
+
+        const BET_VALUES = [10, 20, 50, 100, 200, 500, 1000];
+
+        // --- AUDIO ---
+        const AudioSys = {
+            ctx: new (window.AudioContext || window.webkitAudioContext)(),
+            muted: localStorage.getItem('moji_sound') === 'false',
+            check() {
+                if (this.muted) return false;
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+                return true;
+            },
+            toggle() {
+                this.muted = !this.muted;
+                localStorage.setItem('moji_sound', !this.muted);
+                return this.muted;
+            },
+            playTone(freq, type, duration, vol = 0.1) {
+                if (!this.check()) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            },
+            spin() { 
+                if (!this.check()) return;
+                this.playTone(150, 'sine', 0.05, 0.1); 
+                setTimeout(() => this.playTone(200, 'sine', 0.05, 0.2), 50); 
+                setTimeout(() => this.playTone(250, 'sine', 0.05, 0.2), 100); 
+            },
+            reelStop() { this.playTone(300, 'square', 0.05, 0.05); },
+            bonusReelStop() { 
+                this.playTone(100, 'sawtooth', 0.15, 0.15); 
+                setTimeout(() => this.playTone(80, 'square', 0.1, 0.1), 50); 
+            },
+            win() { [440, 554, 659, 880].forEach((f, i) => setTimeout(() => this.playTone(f, 'sine', 0.4, 0.1), i*100)); },
+            pooSound() { this.playTone(80, 'sawtooth', 0.3, 0.2); setTimeout(()=>this.playTone(60,'sawtooth',0.4,0.2),100); },
+            toiletLand(reelIndex) {
+                if (!this.check()) return;
+                const pitch = 800 + (reelIndex * 200); 
+                this.playTone(pitch, 'triangle', 0.3, 0.2);
+            }
+        };
+
+        // --- REEL LOGIC ---
+        class Reel {
+            constructor(el, index) {
+                this.el = el;
+                this.index = index;
+                this.symbols = [];
+            }
+            get SYMBOL_HEIGHT() { return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--reel-height')) || 100; }
+
+            init() {
+                this.el.innerHTML = '';
+                this.renderStrip(this.generateRandomSet(3)); 
+            }
+
+            generateRandomSet(count, customAssets = null) {
+                let arr = [];
+                const source = customAssets || ASSETS;
+                const totalWeight = source.reduce((acc, cur) => acc + cur.weight, 0);
+                for(let i=0; i<count; i++) {
+                    const rand = Math.random() * totalWeight;
+                    let sum = 0;
+                    let selected = source[source.length - 1];
+                    for(let s of source) {
+                        sum += s.weight;
+                        if(rand <= sum) { selected = s; break; }
+                    }
+                    arr.push(selected);
+                }
+                return arr;
+            }
+
+            renderStrip(symbolDataArray) {
+                this.el.innerHTML = '';
+                symbolDataArray.forEach(s => {
+                    const div = document.createElement('div');
+                    div.className = 'slot-symbol'; 
+                    const card = document.createElement('div');
+                    card.className = 'symbol-card';
+                    if (s.id === 8) card.classList.add('style-toilet');
+                    else if (s.id === 0) card.classList.add('style-poo');
+                    else if (s.id === 7 || s.id === 10) card.classList.add('style-high');
+                    const span = document.createElement('span');
+                    span.innerText = s.val;
+                    card.appendChild(span);
+                    div.appendChild(card);
+                    this.el.appendChild(div);
+                });
+                this.symbols = symbolDataArray;
+            }
+            
+            async spin(finalSymbols, duration) {
+                const isBonus = window.game && window.game.isBonusMode;
+                const fillerCount = isBonus ? 6 : 1; 
+
+                const filler = this.generateRandomSet(fillerCount); 
+                const current = this.symbols.slice(0,3);
+                const fullStrip = [...finalSymbols, ...filler, ...current];
+                
+                this.renderStrip(fullStrip);
+                const startY = -((fullStrip.length - 3) * this.SYMBOL_HEIGHT);
+                
+                this.el.style.transition = 'none';
+                this.el.style.transform = `translateY(${startY}px)`;
+                this.el.offsetHeight; 
+
+                this.el.style.transition = `transform ${duration}ms cubic-bezier(1, 0, 0.75, 1)`;
+                this.el.style.transform = `translateY(0px)`;
+
+                return new Promise(resolve => {
+                    setTimeout(() => {
+                        this.renderStrip(finalSymbols);
+                        this.el.style.transition = 'none';
+                        
+                        if (window.game && window.game.isBonusMode) {
+                            AudioSys.bonusReelStop();
+                        } else {
+                            AudioSys.reelStop();
+                        }
+                        
+                        if (finalSymbols.some(s => s.id === 8)) {
+                            AudioSys.toiletLand(this.index);
+                        }
+                        resolve();
+                    }, duration);
+                });
+            }
+        }
+
+        // --- MACHINE LOGIC ---
+        class SlotMachine {
+            constructor() {
+                // Изначально берем из кэша, потом обновим из базы
+                this.balance = parseInt(localStorage.getItem('jigu_bal_xl')) || 1000;
+                this.betPerLine = 20;
+                this.lines = 5;
+                this.isSpinning = false;
+                this.auto = false;
+                this.freeSpins = 0;
+                this.isBonusMode = false;
+                this.bonusSessionWin = 0;
+                this.userId = tg.initDataUnsafe?.user?.id;
+
+                // Если открыли без телеграма (тест)
+                if (!this.userId) {
+                    console.warn("No TG user found, using test ID");
+                    this.userId = '111111'; 
+                }
+                
+                this.ui = {
+                    bal: document.getElementById('ui-balance'),
+                    win: document.getElementById('ui-win'),
+                    bet: document.getElementById('ui-bet'),
+                    total: document.getElementById('ui-total-bet'),
+                    status: document.getElementById('status-text'),
+                    btnSpin: document.getElementById('btn-spin'),
+                    btnAuto: document.getElementById('btn-auto'),
+                    svg: document.getElementById('paylines-svg'),
+                    fsCounter: document.getElementById('fs-counter'),
+                    bonusTotal: document.getElementById('bonus-total-win'),
+                    // НОВОЕ: Ссылка на обертку
+                    bonusWrapper: document.getElementById('bonus-wrapper'), 
+                    bonusStrip: document.getElementById('bonus-strip'),
+                    soundIcon: document.getElementById('btn-sound'),
+                    wrapper: document.getElementById('game-wrapper')
+                };
+
+                this.reels = [];
+                this.setupReels();
+                this.updateUI();
+                this.initDB(); // Подтягиваем баланс
+                
+                if (AudioSys.muted) {
+                    this.ui.soundIcon.innerText = '🔇';
+                    this.ui.soundIcon.style.opacity = '0.5';
+                }
+
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+            }
+
+            // === DB SYNC ===
+            async initDB() {
+                // Читаем актуальный баланс
+                const { data, error } = await sb
+                    .from('players')
+                    .select('balance')
+                    .eq('tg_id', this.userId)
+                    .single();
+                
+                if(data && !error) {
+                    this.balance = data.balance;
+                    localStorage.setItem('jigu_bal_xl', this.balance);
+                    this.updateUI();
+                }
+            }
+
+            async syncBalance(amountChanged, isGamePlayed = false) {
+                // Оптимистичное обновление (уже сделано в логике игры, здесь только отправка)
+                localStorage.setItem('jigu_bal_xl', this.balance);
+                
+                // Отправляем в базу
+                // 1. Читаем текущий (на всякий случай, чтобы инкрементировать games_played)
+                const { data: currentData } = await sb.from('players').select('games_played').eq('tg_id', this.userId).single();
+                const games = (currentData?.games_played || 0) + (isGamePlayed ? 1 : 0);
+
+                await sb.from('players').update({
+                    balance: this.balance,
+                    games_played: games
+                }).eq('tg_id', this.userId);
+            }
+            // ===============
+
+            resize() {
+                const container = document.getElementById('slot-machine');
+                const h = container.clientHeight / 3;
+                document.documentElement.style.setProperty('--reel-height', `${h}px`);
+                document.documentElement.style.setProperty('--symbol-sz', `${h * 0.55}px`);
+            }
+            
+            setupReels() {
+                const container = document.getElementById('slot-machine');
+                container.innerHTML = '';
+                for(let i=0; i<5; i++) {
+                    const col = document.createElement('div');
+                    col.className = 'w-full h-full'; 
+                    container.appendChild(col);
+                    const reel = new Reel(col, i);
+                    reel.init();
+                    this.reels.push(reel);
+                }
+            }
+
+            updateUI() {
+                this.ui.bal.innerText = this.balance.toLocaleString('ru-RU');
+                this.ui.bet.innerText = this.betPerLine;
+                this.ui.total.innerText = (this.betPerLine * this.lines);
+                
+                if(this.isBonusMode) {
+                    // ПОКАЗЫВАЕМ БОНУСНУЮ ПАНЕЛЬ
+                    this.ui.bonusWrapper.classList.remove('hidden'); // Убираем скрытие
+                    this.ui.bonusWrapper.classList.add('flex');      // Делаем флексом, чтобы центрировалось
+                    
+                    this.ui.bonusStrip.classList.remove('opacity-0');
+                    this.ui.fsCounter.innerText = this.freeSpins;
+                    
+                    if(this.ui.bonusTotal) this.ui.bonusTotal.innerText = this.bonusSessionWin;
+
+                    document.getElementById('spin-text').innerText = `FREE`;
+                    this.ui.btnSpin.disabled = true;
+                    this.ui.btnAuto.disabled = true;
+                } else {
+                    // СКРЫВАЕМ БОНУСНУЮ ПАНЕЛЬ (Она перестает занимать место)
+                    this.ui.bonusWrapper.classList.add('hidden');
+                    this.ui.bonusWrapper.classList.remove('flex');
+
+                    this.ui.bonusStrip.classList.add('opacity-0');
+                    document.getElementById('spin-text').innerText = "SPIN";
+                    this.ui.btnSpin.disabled = this.isSpinning;
+                    this.ui.btnAuto.disabled = false;
+                }
+
+                document.querySelectorAll('.bet-ctrl, #lines-control-panel button').forEach(b => {
+                    if (b.parentNode.id === 'lines-control-panel') {
+                        const val = parseInt(b.innerText);
+                        if (val === this.lines) b.classList.add('active');
+                        else b.classList.remove('active');
+                    }
+                    b.disabled = (this.isSpinning || this.isBonusMode);
+                });
+            }
+
+            toggleAuto() {
+                if (this.isBonusMode) return;
+                this.auto = !this.auto;
+                this.ui.btnAuto.classList.toggle('active', this.auto);
+                if(this.auto && !this.isSpinning) this.spin();
+            }
+
+            adjustBet(dir) {
+                if(this.isSpinning || this.isBonusMode) return;
+                let idx = BET_VALUES.indexOf(this.betPerLine);
+                if(idx === -1) idx = 0;
+                idx += dir;
+                if(idx >= 0 && idx < BET_VALUES.length) {
+                    this.betPerLine = BET_VALUES[idx];
+                    this.updateUI();
+                }
+            }
+
+            setLines(n) {
+                if(this.isSpinning || this.isBonusMode) return;
+                this.lines = n;
+                this.updateUI();
+                this.drawLinesPreview();
+            }
+
+            drawLine(lineIdx, colorOverride) {
+                if(!LINES_MAP[lineIdx]) return;
+                const path = LINES_MAP[lineIdx].path;
+                const getCoord = (c, r) => `${(c * 20) + 10} ${(r * 33.333) + 16.666}`;
+                let d = `M ${getCoord(0, path[0])}`;
+                for(let i=1; i<5; i++) { d += ` L ${getCoord(i, path[i])}`; }
+                const el = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                el.setAttribute("d", d);
+                el.setAttribute("stroke", colorOverride || LINES_MAP[lineIdx].color);
+                el.setAttribute("class", "payline-path");
+                this.ui.svg.appendChild(el);
+            }
+
+            drawLinesPreview() {
+                this.ui.svg.innerHTML = ''; 
+                if (this.previewTimeout) clearTimeout(this.previewTimeout);
+                for(let i=0; i<this.lines; i++) { this.drawLine(i, null); }
+                this.previewTimeout = setTimeout(() => {
+                    if (!this.isSpinning) this.ui.svg.innerHTML = '';
+                }, 1500);
+            }
+
+            toggleSound() {
+                const m = AudioSys.toggle();
+                this.ui.soundIcon.innerText = m ? '🔇' : '🔊';
+                this.ui.soundIcon.style.opacity = m ? '0.5' : '1';
+            }
+
+            togglePaytable() {
+                const el = document.getElementById('paytable-modal');
+                el.classList.toggle('hidden');
+                if(!el.classList.contains('hidden')) this.renderLegend();
+            }
+
+            renderLegend() {
+                const grid = document.getElementById('legend-grid-modal');
+                grid.innerHTML = '';
+                grid.className = 'flex flex-col gap-2 w-full'; 
+                
+                const poo = ASSETS.find(a => a.id === 0);
+                grid.innerHTML += `
+                    <div class="w-full bg-red-900/30 border border-red-500/50 rounded-xl p-3 flex items-center gap-4 relative overflow-hidden">
+                        <div class="absolute -right-4 -bottom-4 text-[5rem] opacity-10 pointer-events-none">💩</div>
+                        <div class="text-5xl drop-shadow-md min-w-[60px] text-center">${poo.val}</div>
+                        <div class="flex-1 z-10">
+                            <div class="text-red-400 font-black uppercase text-sm mb-1 tracking-wider">THE POOP (ШТРАФ)</div>
+                            <div class="text-xs text-red-200/80 mb-2 leading-tight">Портит линию! Отнимает ставку.</div>
+                        </div>
+                    </div>`;
+
+                const specials = [
+                    { id: 10, title: "WILD", color: "text-green-400", desc: "Заменяет всё (кроме 🚽 и 💩)" },
+                    { id: 8, title: "SCATTER", color: "text-yellow-400", desc: "3+ символа = 5 FREE SPINS" }
+                ];
+                specials.forEach(sp => {
+                    const asset = ASSETS.find(a => a.id === sp.id);
+                    grid.innerHTML += `
+                        <div class="w-full bg-amber-900/40 border border-amber-500/30 rounded-xl p-3 flex items-center gap-4">
+                            <div class="text-4xl min-w-[60px] text-center">${asset.val}</div>
+                            <div>
+                                <div class="${sp.color} font-black uppercase text-sm">${sp.title}</div>
+                                <div class="text-xs text-amber-100/70">${sp.desc}</div>
+                            </div>
+                        </div>`;
+                });
+
+                const regular = ASSETS.filter(a => !a.isPoop && a.id !== 10 && a.id !== 8).sort((a,b) => b.payout - a.payout);
+                regular.forEach(a => {
+                    grid.innerHTML += `
+                        <div class="w-full bg-[#2c1308]/80 border border-amber-900/50 rounded-lg p-2 flex items-center gap-3">
+                            <div class="text-3xl w-10 text-center flex-shrink-0">${a.val}</div>
+                            <div class="flex-1 flex flex-col justify-center">
+                                <div class="text-[10px] text-amber-500/80 font-bold uppercase mb-1">x${a.payout} (5 in row)</div>
+                            </div>
+                        </div>`;
+                });
+            }
+
+            showFloat(txt, isBad = false) {
+                if(!this.ui.wrapper) return;
+                const el = document.createElement('div');
+                el.className = isBad ? 'float-text text-poo' : 'float-text text-gold';
+                el.innerText = txt;
+                this.ui.wrapper.appendChild(el);
+                setTimeout(() => el.remove(), 2000);
+            }
+
+            async spin() {
+                if (this.winCycleTimer) clearTimeout(this.winCycleTimer);
+                if (this.previewTimeout) clearTimeout(this.previewTimeout);
+                this.ui.svg.innerHTML = '';
+                
+                const cost = this.betPerLine * this.lines;
+                if (!this.isBonusMode && this.balance < cost) {
+                    this.auto = false; this.updateUI(); 
+                    alert("Недостаточно средств!");
+                    return;
+                }
+                if (this.isSpinning) return;
+
+                this.isSpinning = true;
+                this.ui.wrapper.classList.remove('shake-screen');
+                document.querySelectorAll('.win-box, .poo-damage-box').forEach(c => c.classList.remove('win-box', 'poo-damage-box'));
+
+                if (!this.isBonusMode) {
+                    this.balance -= cost;
+                    this.ui.win.innerText = "0";
+                    // Отправляем в базу списание
+                    this.syncBalance(-cost, true);
+                } else {
+                    this.freeSpins--;
+                }
+                this.updateUI();
+                AudioSys.spin();
+
+                const grid = [];
+                for(let i=0; i<5; i++) {
+                    let roundAssets = this.isBonusMode ? ASSETS.filter(a => a.id !== 0) : [...ASSETS];
+                    if (i > 0) {
+                        const prevReelSymbols = grid[i-1].map(s => s.id);
+                        const boostAmount = this.isBonusMode ? 150 : 50;
+                        roundAssets = roundAssets.map(asset => {
+                            if (prevReelSymbols.includes(asset.id) && asset.id !== 8) {
+                                return { ...asset, weight: asset.weight + boostAmount };
+                            }
+                            return asset;
+                        });
+                    }
+                    grid.push(this.reels[i].generateRandomSet(3, roundAssets));
+                }
+
+                const baseTime = this.isBonusMode ? 1200 : 600;
+                const stagger = this.isBonusMode ? 800 : 400;
+
+                const promises = this.reels.map((r, i) => r.spin(grid[i], baseTime + (i * stagger)));
+                await Promise.all(promises);
+
+                this.checkWin(grid);
+                
+                this.isSpinning = false;
+                this.updateUI();
+
+                if(this.isBonusMode) {
+                    if(this.freeSpins > 0) {
+                        setTimeout(() => this.spin(), 600);
+                    } else { 
+                        setTimeout(() => { 
+                            this.isBonusMode = false; 
+                            this.updateUI(); 
+                            alert("🏁 BONUS FINISHED! 🏁"); 
+                            // Финальный синк после бонуса
+                            this.syncBalance(0, false);
+                        }, 2000);
+                    }
+                } else if (this.auto) {
+                    setTimeout(() => this.spin(), 400);
+                }
+            }
+
+            checkWin(grid) {
+                let totalWin = 0;
+                let totalDmg = 0;
+                let winningLinesData = []; 
+                const totalBet = this.betPerLine * this.lines;
+
+                for(let i=0; i<this.lines; i++) {
+                    const linePath = LINES_MAP[i].path;
+                    const symbols = linePath.map((r, c) => grid[c][r]);
+                    const firstId = symbols[0].id;
+                    
+                    if (firstId === 0) { 
+                        let count = 0;
+                        for(let s of symbols) { if(s.id===0) count++; else break; }
+                        if (count >= 3) {
+                            totalDmg += totalBet * count;
+                            winningLinesData.push({ lineIdx: i, isPoop: true, cells: linePath.slice(0, count).map((r,c)=>({col:c, row:r})) });
+                        }
+                    } else { 
+                        let targetId = firstId;
+                        if (targetId === 10) { 
+                             const nonWild = symbols.find(s => s.id !== 10 && s.id !== 8 && s.id !== 0);
+                             targetId = nonWild ? nonWild.id : 7;
+                        }
+                        if (targetId !== 8 && targetId !== 0) {
+                            let count = 0;
+                            for(let s of symbols) { if (s.id === targetId || s.id === 10) count++; else break; }
+                            if (count >= 3) {
+                                const asset = ASSETS.find(a => a.id === targetId);
+                                const mult = count === 3 ? 0.2 : (count === 4 ? 0.5 : 1.0);
+                                totalWin += Math.floor(this.betPerLine * asset.payout * mult);
+                                winningLinesData.push({ lineIdx: i, isPoop: false, cells: linePath.slice(0, count).map((r,c)=>({col:c, row:r})) });
+                            }
+                        }
+                    }
+                }
+
+                let scatters = 0;
+                grid.forEach(c => c.forEach(s => { if(s.id === 8) scatters++; }));
+                if (scatters >= 3) {
+                    totalWin += (SCATTER_PAYOUTS[scatters] || 0);
+                    if(!this.isBonusMode) this.startBonus();
+                    else { this.freeSpins+=5; this.showFloat("+5 FREE SPINS"); }
+                }
+
+                const net = totalWin - totalDmg;
+                
+                if (this.isBonusMode) {
+                    this.bonusSessionWin += net;
+                    if(this.bonusSessionWin < 0) this.bonusSessionWin = 0;
+                }
+
+                if (totalDmg > 0) {
+                    AudioSys.pooSound();
+                    this.showFloat(`-${totalDmg}`, true);
+                    this.ui.wrapper.classList.add('shake-screen');
+                }
+                if (totalWin > 0) {
+                    AudioSys.win();
+                    this.showFloat(`+${totalWin}`);
+                    if (totalWin > totalBet*5) confetti({particleCount:100, spread:70, origin:{y:0.6}});
+                }
+
+                this.balance += net;
+                
+                // СИНХРОНИЗАЦИЯ С БАЗОЙ
+                // Если был выигрыш или штраф - сохраняем
+                if(net !== 0) {
+                    this.syncBalance(net, false); 
+                }
+
+                this.ui.win.innerText = net > 0 ? `+${net}` : net;
+                this.ui.win.style.color = net < 0 ? '#ef4444' : '#fef3c7';
+
+                this.visualizeWins(winningLinesData);
+            }
+
+            visualizeWins(linesData) {
+                if (this.winCycleTimer) {
+                    clearInterval(this.winCycleTimer);
+                    clearTimeout(this.winCycleTimer);
+                    this.winCycleTimer = null;
+                }
+                if (!linesData || linesData.length === 0) return;
+
+                const drawState = (dataArray) => {
+                    this.ui.svg.innerHTML = '';
+                    document.querySelectorAll('.slot-symbol').forEach(el => {
+                        el.classList.remove('win-box', 'poo-damage-box');
+                    });
+                    dataArray.forEach(l => {
+                        this.drawLine(l.lineIdx, l.isPoop ? '#ef4444' : null);
+                        l.cells.forEach(c => {
+                            const cell = this.reels[c.col].el.children[c.row];
+                            if(cell) {
+                                cell.classList.add(l.isPoop ? 'poo-damage-box' : 'win-box');
+                            }
+                        });
+                    });
+                };
+
+                drawState(linesData);
+
+                if (linesData.length === 1) return;
+
+                let cycleIdx = 0;
+                setTimeout(() => {
+                    if (this.isSpinning) return;
+                    this.winCycleTimer = setInterval(() => {
+                        if (this.isSpinning) {
+                            clearInterval(this.winCycleTimer);
+                            return;
+                        }
+                        drawState([linesData[cycleIdx]]);
+                        cycleIdx = (cycleIdx + 1) % linesData.length;
+                    }, 1000); 
+                }, 1000); 
+            }
+
+            startBonus() {
+                this.isBonusMode = true;
+                this.freeSpins = 5;
+                this.bonusSessionWin = 0; 
+                this.auto = false;
+                setTimeout(() => {
+                     alert("🎰 BONUS STARTED! 🎰");
+                     this.updateUI();
+                     this.spin();
+                }, 500);
+            }
+        }
+
+        window.game = new SlotMachine();
+    </script>
+</body>
+</html>
