@@ -791,7 +791,7 @@
                     let roundAssets = this.isBonusMode ? ASSETS.filter(a => a.id !== 0) : [...ASSETS];
                     if (i > 0) {
                         const prevReelSymbols = grid[i-1].map(s => s.id);
-                        const boostAmount = this.isBonusMode ? 150 : 50;
+                        const boostAmount = this.isBonusMode ? 100 : 50;
                         roundAssets = roundAssets.map(asset => {
                             if (prevReelSymbols.includes(asset.id) && asset.id !== 8) {
                                 return { ...asset, weight: asset.weight + boostAmount };
@@ -967,3 +967,4 @@
 </body>
 
 </html>
+
