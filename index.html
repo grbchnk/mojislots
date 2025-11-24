@@ -399,6 +399,38 @@
         </div>
     </div>
 
+    <!-- REWARD POPUP (НОВОЕ ОКНО) -->
+    <div id="reward-modal" class="fixed inset-0 z-[90] hidden flex items-center justify-center bg-black/90 backdrop-blur-md transition-all duration-300 opacity-0">
+        <div class="bg-slate-900 w-[85%] max-w-sm rounded-3xl p-1 border border-yellow-500/30 shadow-[0_0_50px_rgba(234,179,8,0.2)] transform scale-90 transition-transform duration-300" id="reward-content">
+            <div class="bg-[#1e293b] rounded-[20px] p-6 flex flex-col items-center text-center relative overflow-hidden">
+                
+                <!-- Салют на фоне -->
+                <div class="absolute inset-0 bg-[url('https://cdn.pixabay.com/animation/2023/06/25/20/38/20-38-23-447_512.gif')] bg-cover opacity-10 pointer-events-none"></div>
+
+                <div class="text-6xl mb-4 animate-bounce">🎁</div>
+                
+                <h3 class="text-2xl font-black text-white uppercase italic mb-1">Поздравляем!</h3>
+                <p class="text-slate-400 text-xs font-bold mb-6 px-4">Ваши друзья присоединились к игре!</p>
+
+                <div class="w-full bg-slate-800/50 rounded-xl p-4 mb-6 border border-white/5">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-slate-400 text-xs font-bold uppercase">Друзей</span>
+                        <span class="text-white font-bold" id="reward-friends-count">0</span>
+                    </div>
+                    <div class="w-full h-px bg-white/10 mb-2"></div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-yellow-500 text-xs font-bold uppercase">Бонус</span>
+                        <span class="text-yellow-400 font-mono font-black text-xl" id="reward-amount">+0</span>
+                    </div>
+                </div>
+
+                <button onclick="closeRewardPopup()" class="w-full py-3 rounded-xl bg-gradient-to-r from-yellow-400 to-orange-500 text-slate-900 font-black uppercase tracking-widest shadow-lg shadow-orange-500/20 active:scale-95 transition relative z-10">
+                    ЗАБРАТЬ МОНЕТЫ
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const tg = window.Telegram.WebApp;
         const INITIAL_BALANCE = 1000;
@@ -830,20 +862,58 @@
             if (el) el.innerText = count;
         }
 
+        function showRewardPopup(friendsCount, bonusAmount) {
+            const modal = document.getElementById('reward-modal');
+            const content = document.getElementById('reward-content');
+            const friendsEl = document.getElementById('reward-friends-count');
+            const amountEl = document.getElementById('reward-amount');
+
+            // Заполняем данные
+            friendsEl.innerText = friendsCount;
+            amountEl.innerText = `+${bonusAmount.toLocaleString()}`;
+
+            // Показываем окно
+            modal.classList.remove('hidden');
+            // Небольшая задержка для анимации появления
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-90');
+                content.classList.add('scale-100');
+            }, 10);
+
+            // Вибрация и звук
+            if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+            spawnCoins(); // Запускаем монетки сразу для эффекта
+        }
+
+        function closeRewardPopup() {
+            const modal = document.getElementById('reward-modal');
+            const content = document.getElementById('reward-content');
+
+            // Анимация скрытия
+            modal.classList.add('opacity-0');
+            content.classList.remove('scale-100');
+            content.classList.add('scale-90');
+
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
         // Функция проверки награды за друзей
         async function checkReferralRewards(playerData) {
             const pending = parseInt(playerData.pending_referrals || 0);
             
-            // Условие: >= 2
-            if (pending >= 2) {
+            // ИЗМЕНЕНО: Срабатывает, если есть хотя бы 1 друг (было >= 2)
+            if (pending > 0) {
                 const bonusPerFriend = 5000;
                 const totalBonus = pending * bonusPerFriend;
                 
-                console.log(`Начисляем бонус: ${totalBonus}`);
+                console.log(`Начисляем бонус за друзей: ${totalBonus}`);
 
                 const newBalance = (playerData.balance || 0) + totalBonus;
                 
-                // 1. Обновляем базу
+                // 1. Обновляем базу (обнуляем pending_referrals)
                 const { error } = await sb
                     .from('players')
                     .update({ 
@@ -857,26 +927,8 @@
                     saveBalanceToDB(newBalance);
                     updateBalanceUI();
 
-                    // 3. Показываем уведомление (с защитой от ошибок)
-                    setTimeout(() => {
-                        const msg = `🎉 Поздравляем!\n\nДрузей приглашено: ${pending}\nВаш бонус: +${totalBonus.toLocaleString()} монет!`;
-                        
-                        try {
-                            // Пытаемся вызвать нативный метод Telegram
-                            if (tg.showAlert) {
-                                tg.showAlert(msg);
-                            } else {
-                                // Если метода нет в объекте tg
-                                alert(msg);
-                            }
-                        } catch (e) {
-                            // Если метод есть, но вызвал ошибку (например, старая версия Telegram)
-                            console.warn("Native alert failed, using browser alert", e);
-                            alert(msg);
-                        }
-
-                        if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-                    }, 500); 
+                    // 3. Показываем КРАСИВОЕ UI уведомление вместо системного
+                    showRewardPopup(pending, totalBonus);
                 }
             }
         }
