@@ -87,7 +87,8 @@
                 </div>
             </div>
             <div class="leading-tight">
-                <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Игрок</div>
+                <!-- ДОБАВЛЕН ID="header-rank" 👇 -->
+                <div id="header-rank" class="text-[10px] font-bold uppercase tracking-wider"></div>
                 <div id="username" class="font-bold text-white text-sm">Guest</div>
             </div>
         </div>
@@ -536,7 +537,6 @@
             return data || [];
         }
 
-        // 🔥 ИСПРАВЛЕНО: Добавлена функция отрисовки лидеров
         async function showLeaders() {
             const listContainer = document.getElementById('view-leaders');
             
@@ -559,26 +559,26 @@
             leaders.forEach((player, index) => {
                 let medal = index === 0 ? '🥇' : (index === 1 ? '🥈' : (index === 2 ? '🥉' : `#${index+1}`));
                 
-                // Стили для топ-3 (подсветка)
+                // Стили для топ-3
                 let bgClass = index === 0 ? 'bg-yellow-500/20 border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.2)]' : 
                             (index === 1 ? 'bg-slate-600/40 border-slate-500/50' : 
                             (index === 2 ? 'bg-orange-900/40 border-orange-700/50' : 'glass-panel border-white/5'));
                 
-                // === ЛОГИКА АВАТАРА (ИСПРАВЛЕНИЕ) ===
+                // Аватар
                 let avatarHTML;
                 const raw = player.avatar_url;
-                
-                // Проверяем, ссылка ли это (содержит http)
                 const isUrl = raw && (raw.includes('http') || raw.includes('https'));
 
                 if (isUrl) {
-                    // Если ссылка -> ставим картинку
                     avatarHTML = `<img src="${raw}" class="w-9 h-9 rounded-full object-cover border border-white/20 bg-slate-900">`;
                 } else {
-                    // Если нет -> ставим смайлик (или дефолтный 😎)
                     const emoji = raw || '😎';
                     avatarHTML = `<div class="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center text-xl border border-white/10 select-none shadow-inner">${emoji}</div>`;
                 }
+
+                // 🔥 ВАЖНО: ВОТ ЭТОЙ СТРОЧКИ НЕ ХВАТАЛО 👇
+                // Мы вычисляем ранг для конкретного игрока в цикле
+                const rankInfo = getPlayerRank(player.games_played || 0);
                 
                 // Собираем строку
                 html += `
@@ -591,7 +591,7 @@
                             <div class="flex flex-col justify-center">
                                 <div class="font-bold text-white text-sm truncate max-w-[110px] leading-tight">${player.username}</div>
                                 
-                                <!-- РАНГ В ЛИДЕРАХ -->
+                                <!-- Теперь rankInfo существует и ошибки не будет -->
                                 <span class="text-[8px] px-1.5 py-0.5 rounded-md border w-fit mt-0.5 opacity-90 ${rankInfo.style}">
                                     ${rankInfo.title}
                                 </span>
@@ -671,12 +671,28 @@
                 style: 'bg-gray-800 text-gray-400 border-gray-700/30' 
             };
         }
+
+        function updateHeaderRankUI(gamesPlayed) {
+            const el = document.getElementById('header-rank');
+            if (!el) return;
+
+            // 1. Используем уже существующую логику!
+            const rank = getPlayerRank(gamesPlayed);
+
+            // 2. Ставим текст
+            el.innerText = rank.title;
+
+            // 3. Применяем стиль из rank.style
+            // Добавляем 'inline-block px-2 py-0.5 rounded', чтобы это выглядело как красивый маленький тег
+            el.className = `text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md inline-block shadow-sm whitespace-nowrap ${rank.style}`;
+        }
         // === ИНИЦИАЛИЗАЦИЯ ===
         async function initApp() {
             tg.expand();
 
             // 1. Предварительная отрисовка баланса из кэша (для скорости)
             updateBalanceUI(); 
+            updateHeaderRankUI(playerData.games_played || 0);
             
             let user = tg.initDataUnsafe?.user;
 
@@ -845,6 +861,7 @@
                 // === ОБНОВЛЕНИЕ РАНГА В ПРОФИЛЕ ===
                 const gamesCount = player.games_played || 0;
                 updateGamesPlayedUI(gamesCount); // Обновляем цифру игр
+                updateHeaderRankUI(gamesCount);
 
                 // Вычисляем ранг
                 const rank = getPlayerRank(gamesCount);
