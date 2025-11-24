@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hearts Crush</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Подключаем Telegram и Supabase -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap');
+
+    :root {
+        --reel-height: 100px; 
+        --symbol-sz: 3rem;
+    }
+    
+    body {
+        font-family: 'Nunito', sans-serif;
+        background: linear-gradient(135deg, #fdf2f8 0%, #fbcfe8 50%, #f9a8d4 100%);
+        color: #831843;
+        user-select: none;
+        overflow-y: auto;
+        min-height: 100vh;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Стеклянная панель */
+    .glass-panel {
+        background: rgba(255, 255, 255, 0.65); 
+        border: 2px solid rgba(255, 255, 255, 0.8);
+        box-shadow: 0 10px 30px rgba(236, 72, 153, 0.2);
+        backdrop-filter: blur(12px);
+        border-radius: 24px !important;
+    }
+    
+    /* Фон в режиме бонуса */
+    .bonus-mode-bg {
+        background: linear-gradient(135deg, #be123c 0%, #e11d48 50%, #fb7185 100%) !important;
+        border-color: #fecdd3 !important;
+        box-shadow: 0 0 40px rgba(225, 29, 72, 0.6) !important;
+    }
+    .bonus-mode-bg .slot-window {
+        box-shadow: inset 0 0 30px rgba(0,0,0,0.3);
+    }
+
+    .slot-window {
+        overflow: hidden;
+        position: relative;
+        z-index: 10;
+        box-shadow: inset 0 0 20px rgba(0,0,0,0.1);
+    }
+
+    .reel-col {
+        width: 100%; height: 100%;
+        display: flex; flex-direction: column; align-items: center;
+        border-right: 1px solid rgba(236, 72, 153, 0.1);
+        position: relative;
+        justify-content: flex-start; 
+    }
+    .reel-col:last-child { border-right: none; }
+
+    .slot-symbol {
+        height: var(--reel-height);
+        width: 100%;
+        display: flex; 
+        align-items: center; 
+        justify-content: center;
+        font-size: var(--symbol-sz);
+        line-height: 1;
+        filter: drop-shadow(0 2px 3px rgba(131, 24, 67, 0.2));
+        flex-shrink: 0; 
+        z-index: 1;
+        will-change: transform;
+        transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    
+    .bonus-symbol-box {
+        background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.4), rgba(236, 72, 153, 0.4));
+        border: 2px solid #ec4899;
+        border-radius: 50%;
+        width: 110%;
+        height: 110%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 0 15px rgba(236, 72, 153, 0.6), inset 0 0 10px rgba(236, 72, 153, 0.3);
+        animation: pulseBonus 1.5s infinite;
+    }
+    @keyframes pulseBonus {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); box-shadow: 0 0 15px #db2777; }
+        100% { transform: scale(1); }
+    }
+    
+    .no-transition { transition: none !important; }
+
+    @keyframes popVanish {
+        0% { transform: scale(1); filter: brightness(1); }
+        20% { transform: scale(1.3); filter: brightness(2) hue-rotate(-20deg); opacity: 1; }
+        100% { transform: scale(0); opacity: 0; }
+    }
+    .symbol-explode {
+        animation: popVanish 0.5s ease-in forwards !important;
+        z-index: 50;
+    }
+
+    .spin-btn {
+        background: linear-gradient(180deg, #f472b6 0%, #db2777 100%);
+        box-shadow: 0 6px 0 #9d174d, 0 5px 10px rgba(0,0,0,0.4);
+        border-radius: 999px; 
+        color: white; 
+        border-top: 1px solid rgba(255,255,255,0.3);
+        transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .spin-btn:active:not(:disabled) { 
+        transform: translateY(6px); 
+        box-shadow: 0 0 0 #9d174d; 
+    }
+    .spin-btn:disabled { 
+        filter: grayscale(1) brightness(0.9);
+        cursor: not-allowed; 
+        transform: translateY(6px);
+        box-shadow: 0 0 0 #9d174d;
+    }
+    
+    .auto-btn {
+        background: linear-gradient(180deg, #fff 0%, #fce7f3 100%);
+        box-shadow: 0 6px 0 #fbcfe8, 0 5px 10px rgba(0,0,0,0.2); 
+        border: 1px solid #fbcfe8; 
+        border-radius: 20px; 
+        color: #db2777;
+        transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .auto-btn:active { 
+        transform: translateY(6px); 
+        box-shadow: 0 0 0 #fbcfe8; 
+    }
+    .auto-btn.active-auto { 
+        background: linear-gradient(180deg, #86efac 0%, #22c55e 100%); 
+        border-color: #14532d;
+        color: white;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        transform: translateY(6px); 
+        box-shadow: inset 0 3px 10px rgba(0,0,0,0.3); 
+    }
+    .auto-btn.active-auto:active { filter: brightness(0.9); }
+    
+    .modal-backdrop { animation: fadeIn 0.3s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .control-btn {
+        width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
+        background: rgba(255,255,255,0.5); border-radius: 50%; cursor: pointer; transition: all 0.2s;
+        border: 1px solid rgba(255,255,255,0.8); box-shadow: 0 2px 5px rgba(131, 24, 67, 0.1);
+    }
+    .control-btn:hover { background: #fff; transform: scale(1.1); }
+    .control-btn:active { transform: scale(0.95); }
+
+    .legend-card {
+        background: rgba(255, 255, 255, 0.7); border: 1px solid rgba(236, 72, 153, 0.2);
+        border-radius: 12px; padding: 6px; display: flex; align-items: center; gap: 8px;
+    }
+    .legend-symbol { font-size: 1.8rem; width: 35px; display: flex; justify-content: center; }
+    .payout-list { flex: 1; }
+    .payout-row { display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; }
+    .balance-val { color: #be185d; font-weight: 900; }
+    
+    .fs-indicator {
+        position: absolute; top: -10px; right: -10px;
+        background: #e11d48; color: white; font-weight: 900;
+        padding: 4px 12px; border-radius: 20px; border: 2px solid white;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        z-index: 50; transform: rotate(5deg);
+        animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes bounceIn { from {transform: scale(0);} to {transform: scale(1) rotate(5deg);} }
+
+</style>
+</head>
+<body class="w-full min-h-screen flex flex-col items-center py-2">
+
+    <div class="relative z-10 w-full max-w-2xl flex flex-col items-center gap-2 px-2">
+        <div class="w-full flex justify-between items-center px-2 pt-2 pb-1">
+            <!-- КНОПКА НАЗАД В МЕНЮ -->
+            <button class="control-btn group" onclick="goHome()">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" class="w-5 h-5 text-pink-500 group-hover:text-pink-600">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                </svg>
+            </button>
+            <div class="text-center">
+                <h1 class="text-3xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-red-500 to-purple-500 drop-shadow-sm tracking-tighter leading-none filter">
+                    Hearts Crush
+                </h1>
+            </div>
+            <div class="flex items-center gap-2">
+                <button class="control-btn" onclick="game.togglePaytable()"><span class="text-xl font-bold text-pink-500">i</span></button>
+                <button class="control-btn" onclick="game.toggleSound()"><span id="sound-icon" class="text-sm">🔊</span></button>
+            </div>
+        </div>
+
+        <div class="w-full grid grid-cols-2 gap-3 px-1">
+            <div class="glass-panel px-4 py-2 flex flex-col items-center justify-center h-16">
+                <div class="text-xs font-bold text-pink-700 uppercase opacity-70">Баланс</div>
+                <!-- ID для анимации обновления -->
+                <div class="text-2xl balance-val transition-all duration-300" id="ui-balance">...</div>
+            </div>
+            <div class="glass-panel px-4 py-2 flex flex-col items-center justify-center h-16">
+                <div class="text-xs font-bold text-pink-700 uppercase opacity-70">Выигрыш</div>
+                <div class="text-2xl balance-val text-purple-600" id="ui-win">0</div>
+            </div>
+        </div>
+
+        <div class="glass-panel p-2 md:p-4 w-full relative transition-colors duration-500" id="game-wrapper">
+            <!-- Индикатор фриспинов -->
+            <div id="fs-badge" class="hidden fs-indicator">
+                FREE SPINS: <span id="fs-count">20</span>
+            </div>
+
+            <div class="bg-white/80 rounded-[20px] border-4 border-pink-200 shadow-inner relative overflow-hidden mb-3 aspect-[15/8] w-full h-auto">
+                <div class="grid grid-cols-6 h-full w-full relative slot-window" id="slot-machine"></div>
+            </div>
+
+            <div class="w-full px-2 mb-3 flex justify-between items-center">
+                <span id="status-text" class="text-sm font-bold text-pink-500 uppercase tracking-wide">Удачи!</span>
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] text-pink-400 font-bold uppercase">Ставка</span>
+                    <span id="ui-total-bet" class="text-2xl font-black text-pink-800">20</span>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <div class="flex justify-center mb-2">
+                    <div class="bg-white/50 rounded-2xl p-2 border border-pink-100 flex items-center gap-4">
+                        <button class="bet-ctrl w-10 h-10 rounded-xl bg-pink-100 hover:bg-pink-200 text-pink-600 font-bold text-xl active:scale-95 transition disabled:opacity-50" onclick="game.adjustBet(-1)">-</button>
+                        <div class="text-center w-20">
+                            <div class="text-[9px] text-pink-400 uppercase font-bold">Ставка</div>
+                            <div class="font-bold text-pink-800 text-lg leading-none" id="ui-bet">20</div>
+                        </div>
+                        <button class="bet-ctrl w-10 h-10 rounded-xl bg-pink-100 hover:bg-pink-200 text-pink-600 font-bold text-xl active:scale-95 transition disabled:opacity-50" onclick="game.adjustBet(1)">+</button>
+                    </div>
+                </div>
+                <div class="flex gap-3 h-16 pb-1">
+                    <button id="btn-auto" onclick="game.toggleAuto()" class="w-24 auto-btn text-xs font-bold flex flex-col items-center justify-center group">
+                        <span class="text-xl mb-1 group-hover:scale-110 transition">🔄</span> AUTO
+                    </button>
+                    <button id="btn-spin" onclick="game.spin()" class="flex-1 spin-btn text-2xl font-black tracking-widest relative overflow-hidden group">
+                        <span class="relative z-10 drop-shadow-md">SPIN</span>
+                        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500"></div>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="paytable-modal" class="fixed inset-0 z-[70] hidden flex items-center justify-center modal-backdrop bg-pink-900/60 backdrop-blur-sm" onclick="game.togglePaytable()">
+        <div class="glass-panel p-5 w-full max-w-lg m-4 relative max-h-[90vh] overflow-y-auto bg-white" onclick="event.stopPropagation()">
+            <button class="absolute top-3 right-3 text-pink-400 hover:text-pink-600 text-xl font-bold" onclick="game.togglePaytable()">✕</button>
+            <h2 class="text-center text-xl font-black text-pink-600 mb-4 uppercase">Выплаты</h2>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-3" id="legend-grid-modal"></div>
+            <div class="mt-4 p-3 bg-pink-50 rounded-lg border border-pink-100 text-center text-xs text-pink-800 font-bold">
+                🎁 3+ Символа = 20 БЕСПЛАТНЫХ СПИНОВ
+            </div>
+        </div>
+    </div>
+
+    <script>
+            // === ИНТЕГРАЦИЯ SUPABASE ===
+            const SUPABASE_URL = 'https://ugkactbowbcxkwnovkwe.supabase.co';
+            const SUPABASE_KEY = 'sb_publishable_myr7kO9VcTIIuwVwRKWIAg_8Ee_-5Ga'; // Твои ключи
+            const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            const tg = window.Telegram.WebApp;
+            
+            tg.expand();
+            
+            const USER_ID = tg.initDataUnsafe?.user?.id?.toString() || null;
+            // Ключ такой же как в главном приложении
+            const LOCAL_STORAGE_KEY = 'jigu_bal_xl'; 
+
+            // === ФУНКЦИЯ ВОЗВРАТА ===
+            function goHome() {
+                // Если ты используешь относительные пути, просто index.html
+                // Если хостишь в Vercel/GitHub Pages, убедись, что путь правильный
+                window.location.href = 'index.html'; 
+            }
+
+            // === GAME ASSETS ===
+            const ASSETS = [
+                { id: 9, val: '2', payout: 0, weight: 0 },   
+                { id: 8, val: '🎁', payout: 0, weight: 5 },   
+                { id: 7, val: '💍', payout: 250, weight: 20 }, 
+                { id: 6, val: '🧸', payout: 100, weight: 30 }, 
+                { id: 5, val: '🌹', payout: 50, weight: 40 }, 
+                { id: 4, val: '💚', payout: 15, weight: 50 }, 
+                { id: 3, val: '💛', payout: 15, weight: 50 },  
+                { id: 2, val: '💜', payout: 15, weight: 50 },  
+                { id: 1, val: '💙', payout: 15, weight: 50 },  
+                { id: 0, val: '❤️', payout: 15, weight: 50 }   
+            ];
+            const BET_VALUES = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
+            
+            const AudioSys = {
+                ctx: new (window.AudioContext || window.webkitAudioContext)(),
+                muted: localStorage.getItem('moji_sound') === 'false',
+                check() {
+                    if (this.muted) return false;
+                    if (this.ctx.state === 'suspended') this.ctx.resume();
+                    return true;
+                },
+                toggle() {
+                    this.muted = !this.muted;
+                    localStorage.setItem('moji_sound', !this.muted); return this.muted;
+                },
+                playTone(f, t, d, v=0.1) {
+                    if(!this.check()) return;
+                    const o=this.ctx.createOscillator(), g=this.ctx.createGain();
+                    o.type=t; o.frequency.value=f; g.gain.setValueAtTime(0, this.ctx.currentTime);
+                    g.gain.linearRampToValueAtTime(v, this.ctx.currentTime+0.02);
+                    g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime+d);
+                    o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(this.ctx.currentTime+d);
+                },
+                spin() { this.playTone(200, 'sawtooth', 0.3, 0.05); },
+                drop() { this.playTone(100, 'sine', 0.2, 0.1); },
+                pop() { this.playTone(600, 'triangle', 0.1, 0.1); },
+                bonus() { this.playTone(800, 'square', 0.6, 0.1); },
+                win() { [400,500,600].forEach((f,i)=>setTimeout(()=>this.playTone(f,'sine',0.4,0.1), i*100)); },
+                scatterDrop() { 
+                    this.playTone(1200, 'sine', 0.3, 0.15); 
+                    setTimeout(() => this.playTone(1800, 'sine', 0.4, 0.1), 50);
+                }
+            };
+
+            class Reel {
+                constructor(el, index) {
+                    this.el = el;
+                    this.index = index;
+                    this.currentSymbols = [];
+                }
+                
+                get SYMBOL_HEIGHT() { return this.el.offsetWidth * 0.8; }
+
+                generateRandomSet(count, isBonusMode = false, biasList = []) {
+                    let tempAssets = ASSETS.map(a => {
+                        let w = a.weight;
+                        if (a.id === 9 && !isBonusMode) {
+                            w = 0;
+                        } else if (a.id !== 9 && biasList.includes(a.id)) {
+                             w *= 2; 
+                        }
+                        return { ...a, tempWeight: w };
+                    });
+
+                    let arr = [];
+                    for(let i=0; i<count; i++) {
+                        let total = tempAssets.reduce((a,c) => a + c.tempWeight, 0);
+                        let r = Math.random() * total;
+                        let s = ASSETS[0];
+                        
+                        for(let a of tempAssets) {
+                            r -= a.tempWeight;
+                            if(r <= 0) { s = a; break; }
+                        }
+                        arr.push({...s, uid: Math.random().toString(36).substr(2, 9)});
+                    }
+                    return arr;
+                }
+
+                render(symbols, dropData = null) {
+                    this.currentSymbols = symbols;
+                    this.el.innerHTML = '';
+                    
+                    symbols.forEach((s, idx) => {
+                        const div = document.createElement('div');
+                        div.className = 'slot-symbol';
+                        if(s.id === 8) {
+                            div.innerHTML = `<div class="bonus-symbol-box">${s.val}</div>`;
+                        } else {
+                            div.innerText = s.val;
+                        }
+                        
+                        if (dropData && s.offsetY !== undefined) {
+                            div.style.transform = `translateY(${s.offsetY * 100}%)`;
+                            div.classList.add('no-transition');
+                        }
+                        this.el.appendChild(div);
+                    });
+
+                    if (dropData) {
+                        this.el.offsetHeight; 
+                        Array.from(this.el.children).forEach((div) => {
+                            div.classList.remove('no-transition');
+                            div.style.transform = 'translateY(0)';
+                        });
+                    }
+                }
+
+                async spin(finalSymbols, duration, isBonusMode) {
+                    const filler = this.generateRandomSet(6, isBonusMode);
+                    const fullStrip = [...finalSymbols, ...filler, ...this.currentSymbols];
+                    
+                    this.el.innerHTML = '';
+                    fullStrip.forEach(s => {
+                        const div = document.createElement('div');
+                        div.className = 'slot-symbol';
+                        if(s.id === 8) {
+                            div.innerHTML = `<div class="bonus-symbol-box">${s.val}</div>`;
+                        } else {
+                            div.innerText = s.val;
+                        }
+                        this.el.appendChild(div);
+                    });
+
+                    const moveCount = fullStrip.length - 4;
+                    const h = this.SYMBOL_HEIGHT;
+                    const startY = -(moveCount * h);
+
+                    this.el.style.transition = 'none';
+                    this.el.style.transform = `translateY(${startY}px)`;
+                    this.el.offsetHeight;
+
+                    this.el.style.transition = `transform ${duration}ms cubic-bezier(0.45, 0.05, 0.55, 0.95)`;
+                    this.el.style.transform = `translateY(0px)`;
+
+                    return new Promise(r => setTimeout(() => {
+                        this.render(finalSymbols);
+                        this.el.style.transition = 'none';
+                        this.el.style.transform = 'none';
+                        
+                        const hasScatter = finalSymbols.some(s => s.id === 8);
+                        if (hasScatter) AudioSys.scatterDrop();
+                        else AudioSys.drop();
+                        
+                        r();
+                    }, duration));
+                }
+            }
+
+            class SlotMachine {
+                constructor() {
+                    // 1. Инициализация баланса: сначала из LocalStorage, потом из DB
+                    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+                    this.balance = saved ? parseInt(saved) : 1000;
+                    this.gamesPlayed = 0; // Для подсчета в сессии
+                    
+                    this.bet = 20;
+                    this.reels = [];
+                    this.isSpinning = false;
+                    this.auto = false;
+                    this.freeSpins = 0; 
+                    this.currentGrid = [];
+                    
+                    this.initDB(); // Синхронизация с базой
+
+                    const container = document.getElementById('slot-machine');
+                    for(let i=0; i<6; i++) {
+                        const div = document.createElement('div');
+                        div.className = 'reel-col';
+                        container.appendChild(div);
+                        const r = new Reel(div, i);
+                        r.render(r.generateRandomSet(4));
+                        this.reels.push(r);
+                    }
+                    
+                    this.updateUI();
+                    this.renderPaytable();
+                    window.addEventListener('resize', () => this.updateLayout());
+                    setTimeout(() => this.updateLayout(), 100);
+                }
+
+                // === СИНХРОНИЗАЦИЯ С БАЗОЙ ===
+                async initDB() {
+                    if (!USER_ID) return;
+                    
+                    // Запрашиваем актуальный баланс
+                    const { data, error } = await sb
+                        .from('players')
+                        .select('balance, games_played')
+                        .eq('tg_id', USER_ID)
+                        .single();
+
+                    if (data && !error) {
+                        this.balance = data.balance;
+                        this.gamesPlayed = data.games_played || 0;
+                        localStorage.setItem(LOCAL_STORAGE_KEY, this.balance);
+                        this.updateUI();
+                    }
+                }
+
+                async saveBalanceToDB(newBalance, incrementGame = false) {
+                    if (!USER_ID) return;
+                    
+                    // Обновляем локально сразу
+                    localStorage.setItem(LOCAL_STORAGE_KEY, newBalance);
+                    
+                    let updateData = { balance: newBalance };
+                    if (incrementGame) {
+                        // Если это был спин, увеличиваем games_played
+                        // В реальном приложении лучше делать RPC вызов increment, но так тоже сойдет для MVP
+                        // Мы берем локальный gamesPlayed и увеличиваем
+                        this.gamesPlayed++;
+                        updateData.games_played = this.gamesPlayed;
+                    }
+
+                    // Отправляем в базу "в фоне" (не ждем await, чтобы не фризить игру)
+                    sb.from('players')
+                      .update(updateData)
+                      .eq('tg_id', USER_ID)
+                      .then(({error}) => { if(error) console.error(error); });
+                }
+                // ==============================
+
+                updateLayout() {
+                    const w = document.getElementById('slot-machine').clientWidth / 6;
+                    document.documentElement.style.setProperty('--reel-height', `${w * 0.8}px`);
+                    document.documentElement.style.setProperty('--symbol-sz', `${w * 0.55}px`);
+                }
+
+                async spin() {
+                    if (this.isSpinning) return;
+                    
+                    // Проверка баланса
+                    if (this.freeSpins === 0 && this.balance < this.bet) {
+                        this.auto = false; 
+                        this.updateUI();
+                        // Можно добавить алерт "Нет денег"
+                        tg.showAlert("Недостаточно монет!");
+                        return;
+                    }
+                    
+                    this.isSpinning = true;
+                    this.updateUI(); 
+                    AudioSys.spin();
+
+                    let sessionWin = 0;
+                    document.getElementById('ui-win').innerText = "0";
+                    
+                    if (this.freeSpins > 0) {
+                        this.freeSpins--;
+                        document.getElementById('fs-count').innerText = this.freeSpins;
+                        document.getElementById('status-text').innerText = this.freeSpins === 0 ? "ПОСЛЕДНИЙ СПИН!" : `FREE SPINS: ${this.freeSpins}`;
+                    } else {
+                        // Списываем ставку
+                        this.balance -= this.bet;
+                        // Сохраняем в БД (Списание + +1 игра)
+                        this.saveBalanceToDB(this.balance, true); 
+                        
+                        document.getElementById('status-text').innerText = "УДАЧИ!";
+                    }
+                    document.getElementById('ui-balance').innerText = this.balance; 
+
+                    this.currentGrid = this.reels.map(r => r.generateRandomSet(4));
+                    const spinPromises = this.reels.map((r, i) => r.spin(this.currentGrid[i], 600 + (i*150))); 
+                    
+                    await Promise.all(spinPromises);
+                    
+                    let scatterCount = 0;
+                    this.currentGrid.forEach(col => col.forEach(s => { if(s.id === 8) scatterCount++; }));
+                    
+                    if(scatterCount >= 3) {
+                        AudioSys.bonus();
+                        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#ec4899', '#fff'] });
+                        this.freeSpins += 10;
+                        document.getElementById('fs-count').innerText = this.freeSpins;
+                        document.getElementById('status-text').innerText = "БОНУС! +10 SPINS";
+                        if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+                        await new Promise(r => setTimeout(r, 1500));
+                    }
+
+                    await this.processCascades(0);
+                    
+                    if(this.freeSpins === 0 && document.getElementById('game-wrapper').classList.contains('bonus-mode-bg')) {
+                         document.getElementById('game-wrapper').classList.remove('bonus-mode-bg');
+                         document.getElementById('fs-badge').classList.add('hidden');
+                         document.getElementById('status-text').innerText = "БОНУС ЗАВЕРШЕН";
+                    } 
+                    else if (this.freeSpins > 0 && !document.getElementById('game-wrapper').classList.contains('bonus-mode-bg')) {
+                         document.getElementById('game-wrapper').classList.add('bonus-mode-bg');
+                         document.getElementById('fs-badge').classList.remove('hidden');
+                    }
+
+                    this.isSpinning = false;
+                    this.updateUI(); 
+                    
+                    if (this.auto || (this.freeSpins > 0)) {
+                        setTimeout(() => this.spin(), 300);
+                    }
+                }
+
+                async processCascades(sessionWin) {
+                    let safety = 0;
+                    while(safety++ < 20) {
+                        const { winAmount, winCoords } = this.calculateWins(this.currentGrid);
+                        if (winAmount === 0) break;
+                        
+                        sessionWin += winAmount;
+                        this.balance += winAmount;
+                        
+                        // Сохраняем выигрыш в БД
+                        this.saveBalanceToDB(this.balance, false);
+
+                        document.getElementById('ui-win').innerText = sessionWin;
+                        this.updateUI();
+                        AudioSys.win();
+                        
+                        if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+
+                        winCoords.forEach(c => {
+                            const node = this.reels[c.c].el.children[c.r];
+                            if(node) node.classList.add('symbol-explode');
+                        });
+                        AudioSys.pop();
+                        
+                        await new Promise(r => setTimeout(r, 400)); 
+
+                        let allSurvivorIds = [];
+                        this.currentGrid.forEach((col, colIdx) => {
+                            col.forEach((s, rowIdx) => {
+                                const isExploding = winCoords.some(w => w.c === colIdx && w.r === rowIdx);
+                                if (!isExploding) {
+                                    allSurvivorIds.push(s.id);
+                                }
+                            });
+                        });
+
+                        for(let c=0; c<6; c++) {
+                            const colBadIndices = winCoords.filter(w => w.c === c).map(w => w.r);
+                            if(colBadIndices.length === 0) continue;
+
+                            const oldCol = this.currentGrid[c];
+                            let survivors = [];
+                            oldCol.forEach((s, rIndex) => {
+                                if (!colBadIndices.includes(rIndex)) {
+                                    survivors.push({ ...s, oldRow: rIndex });
+                                }
+                            });
+
+                            const needed = 4 - survivors.length;
+                            const newSyms = this.reels[c].generateRandomSet(needed, false, allSurvivorIds);
+                            
+                            newSyms.forEach((s, i) => {
+                                s.oldRow = i - needed; 
+                                s.isNew = true;
+                            });
+
+                            const newColState = [...newSyms, ...survivors];
+
+                            newColState.forEach((s, newIndex) => {
+                                const diff = s.oldRow - newIndex;
+                                s.offsetY = diff; 
+                            });
+
+                            this.currentGrid[c] = newColState;
+                            this.reels[c].render(newColState, true);
+                        }
+
+                        AudioSys.drop();
+                        await new Promise(r => setTimeout(r, 450)); 
+                    }
+                }
+
+                calculateWins(grid) {
+                    let counts = {};
+                    let coords = {};
+                    grid.forEach((col, c) => col.forEach((s, r) => {
+                         if(s.id === 8 || s.id === 9) return; 
+                         if(!counts[s.id]) { counts[s.id]=0; coords[s.id]=[]; }
+                         counts[s.id]++; coords[s.id].push({c,r});
+                    }));
+                    
+                    let winAmount = 0;
+                    let winCoords = [];
+                    
+                    for(let id in counts) {
+                        if(counts[id] >= 7) { // 7+ совпадений
+                            const asset = ASSETS.find(a=>a.id==id);
+                            
+                            let mul = 0.1; 
+                            if(counts[id] >= 8) mul = 0.25;
+                            if(counts[id] >= 10) mul = 0.5;
+                            if(counts[id] >= 12) mul = 1;
+
+                            let payout = Math.floor(this.bet * asset.payout * mul);
+                            if (payout < 1 && asset.payout > 0) payout = 1; 
+
+                            winAmount += payout;
+                            winCoords.push(...coords[id]);
+                        }
+                    }
+                    return { winAmount, winCoords };
+                }
+
+                updateUI() {
+                    document.getElementById('ui-balance').innerText = this.balance;
+                    document.getElementById('ui-bet').innerText = this.bet;
+                    document.getElementById('ui-total-bet').innerText = this.bet;
+                    
+                    const canSpin = !this.isSpinning && (this.balance >= this.bet || this.freeSpins > 0);
+                    document.getElementById('btn-spin').disabled = !canSpin;
+                    
+                    if(this.auto) document.getElementById('btn-auto').classList.add('active-auto');
+                    else document.getElementById('btn-auto').classList.remove('active-auto');
+
+                    const canChangeBet = !this.isSpinning && this.freeSpins === 0 && !this.auto;
+                    document.querySelectorAll('.bet-ctrl').forEach(btn => btn.disabled = !canChangeBet);
+                }
+                
+                togglePaytable() { document.getElementById('paytable-modal').classList.toggle('hidden'); }
+                renderPaytable() {
+                    const d = document.getElementById('legend-grid-modal'); d.innerHTML='';
+                    ASSETS.forEach(a=>{
+                        if(a.id>7)return;
+                        d.innerHTML+=`<div class="legend-card"><div class="legend-symbol">${a.val}</div><div class="payout-list"><div class="payout-row"><span>12+</span><span class="text-pink-600">${Math.floor(this.bet*a.payout)}</span></div></div></div>`;
+                    });
+                }
+                adjustBet(d) {
+                    if(this.isSpinning || this.freeSpins > 0 || this.auto) return;
+                    let i = BET_VALUES.indexOf(this.bet)+d;
+                    if(i>=0 && i<BET_VALUES.length) { 
+                        this.bet=BET_VALUES[i]; 
+                        this.updateUI(); 
+                        this.renderPaytable(); 
+                    }
+                }
+                toggleSound() { AudioSys.toggle(); document.getElementById('sound-icon').innerText = AudioSys.muted ? '🔇':'🔊'; }
+                toggleAuto() { 
+                    this.auto=!this.auto; 
+                    this.updateUI();
+                    if(this.auto && !this.isSpinning) this.spin(); 
+                }
+            }
+
+            window.game = new SlotMachine();
+    </script>
+</body>
+</html>
