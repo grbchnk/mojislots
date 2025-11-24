@@ -446,6 +446,23 @@
                 }
             }
 
+            async function incrementGamesPlayed() {
+                if (!sb || !currentUserTgId) return;
+                
+                // Делаем это асинхронно, чтобы не тормозить анимацию слота
+                sb.from('players')
+                .select('games_played')
+                .eq('tg_id', currentUserTgId)
+                .single()
+                .then(({ data }) => {
+                    const current = data?.games_played || 0;
+                    sb.from('players')
+                        .update({ games_played: current + 1 })
+                        .eq('tg_id', currentUserTgId)
+                        .then(() => console.log('Game counted'));
+                });
+            }
+
             // --- Вспомогательный класс для вибрации ---
             const HapticSys = {
                 trigger(type = 'medium') {
@@ -989,6 +1006,8 @@
                     AudioSys.win();
                 }
 
+                
+
                 async processBombs(grid) {
                     let bombs = [];
                     grid.forEach((col, c) => col.forEach((s, r) => {
@@ -1064,6 +1083,7 @@
                     if (!this.isBonusMode) {
                         this.balance -= cost;
                         updateBalance(this.balance);
+                        incrementGamesPlayed();
                         this.ui.win.innerText = "0";
                     } else {
                         this.freeSpins--;
@@ -1163,7 +1183,15 @@
                     let totalWin = 0;
                     let winLinesData = []; 
 
-                    // 1. ПРОВЕРКА ЛИНИЙ
+                    // --- НОВОЕ: 1. Считаем общий множитель со всего экрана (СУММИРУЕМ) ---
+                    let globalMultiplier = 0;
+                    grid.forEach(col => col.forEach(s => {
+                        if (s.mul && s.mul > 1) globalMultiplier += s.mul;
+                    }));
+                    // Если множителей нет, то множитель равен 1. 
+                    if (globalMultiplier === 0) globalMultiplier = 1;
+
+                    // 2. ПРОВЕРКА ЛИНИЙ
                     for(let i=0; i<this.lines; i++) {
                         const lineCfg = LINES_MAP[i];
                         if(!lineCfg) continue;
@@ -1174,14 +1202,11 @@
                         if (lineSymbols[0].id === 8 || lineSymbols[0].id === 9) continue;
 
                         let targetId = null; 
-                        let lineMultiplier = 1;
 
-                        // Шаг А: Определяем целевой символ (первый НЕ Wild) и считаем множители
+                        // Шаг А: Определяем целевой символ (первый НЕ Wild и НЕ множитель)
                         for (let s of lineSymbols) {
-                            if (s.mul && s.mul > 1) lineMultiplier *= s.mul;
-                            
                             let effectiveId = s.id;
-                            // Если это бонусный множитель-символ (id 11), берем id цели бонуса
+                            // Если это бонусный множитель-символ (id 11), для построения линии он считается как целевой символ бонуса
                             if (s.id === 11 && this.bonusTargetSymbol) effectiveId = this.bonusTargetSymbol.id;
 
                             // 10 = Wild. Ищем первый нормальный символ.
@@ -1220,14 +1245,14 @@
                             }
                         }
 
-                        // ПРАВИЛО: Вайлдов должно быть не больше, чем обычных символов (wildCount <= symbolCount)
+                        // ПРАВИЛО: Вайлдов должно быть не больше, чем обычных символов
                         if (currentLen >= 3 && wildCount <= symbolCount) {
                             const asset = ASSETS.find(a => a.id === targetId);
                             // Коэффициенты: 3шт = 0.2, 4шт = 0.5, 5шт = 1.0
                             const mult = currentLen === 3 ? 0.2 : (currentLen === 4 ? 0.5 : 1.0);
                             
+                            // Считаем БАЗОВЫЙ выигрыш за линию (без умножения на бомбы пока что)
                             let winAmount = Math.floor(this.betPerLine * asset.payout * mult);
-                            winAmount *= lineMultiplier;
                             
                             if (winAmount > 0) {
                                 totalWin += winAmount;
@@ -1243,7 +1268,23 @@
                         }
                     }
 
-                    // 2. ПРОВЕРКА СКАТТЕРОВ (Осталась без изменений)
+                    // --- НОВОЕ: Применяем общий множитель ко всему выигрышу за линии ---
+                    if (totalWin > 0 && globalMultiplier > 1) {
+                        totalWin = totalWin * globalMultiplier;
+                        
+                        // Показываем флоатинг текст с общим иксом
+                        this.showFloatingText(`X${globalMultiplier}`, true);
+                        
+                        // Подсвечиваем все множители на экране
+                         grid.forEach((col, c) => col.forEach((s, r) => {
+                            if (s.mul && s.mul > 1) {
+                                this.addSymbolEffect(c, r, 'scale');
+                                this.addSymbolEffect(c, r, 'light');
+                            }
+                        }));
+                    }
+
+                    // 3. ПРОВЕРКА СКАТТЕРОВ
                     let scatterCount = 0;
                     let scatterPositions = []; 
                     grid.forEach((col, colIdx) => {
@@ -1284,7 +1325,7 @@
                         }
                     } 
 
-                    // 3. ФИНАЛИЗАЦИЯ
+                    // 4. ФИНАЛИЗАЦИЯ
                     if(totalWin > 0) {
                         const oldBalance = this.balance;
                         this.balance += totalWin;
@@ -1359,4 +1400,3 @@
 </body>
 
 </html>
-
