@@ -87,7 +87,8 @@
                 </div>
             </div>
             <div class="leading-tight">
-                <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Игрок</div>
+                <!-- ДОБАВЛЕН ID header-rank -->
+                <div id="header-rank" class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Игрок</div>
                 <div id="username" class="font-bold text-white text-sm">Guest</div>
             </div>
         </div>
@@ -248,7 +249,9 @@
                     <span class="text-slate-500 text-xs opacity-50">✎</span>
                 </div>
                 
-                <span class="px-3 py-1 bg-slate-800 rounded-full text-[10px] font-bold text-yellow-400 border border-yellow-400/30 mt-1">LEVEL 1</span>
+                <span id="profile-rank-badge" class="px-3 py-1 mt-2 rounded-full text-[10px] font-bold border transition-all duration-300">
+                    ЗАГРУЗКА...
+                </span>
             </div>
             <div class="grid grid-cols-2 gap-3 mb-6">
                 <div class="glass-panel p-4 rounded-2xl flex flex-col items-center">
@@ -527,7 +530,8 @@
             if (!sb) return [];
             const { data, error } = await sb
                 .from('players')
-                .select('username, balance, avatar_url') // <--- ДОБАВИЛ avatar_url
+                // ДОБАВИЛИ games_played В ЗАПРОС 👇
+                .select('username, balance, avatar_url, games_played') 
                 .order('balance', { ascending: false })
                 .limit(10);
             return data || [];
@@ -556,39 +560,45 @@
             leaders.forEach((player, index) => {
                 let medal = index === 0 ? '🥇' : (index === 1 ? '🥈' : (index === 2 ? '🥉' : `#${index+1}`));
                 
-                // Стили для топ-3 (подсветка)
                 let bgClass = index === 0 ? 'bg-yellow-500/20 border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.2)]' : 
                             (index === 1 ? 'bg-slate-600/40 border-slate-500/50' : 
                             (index === 2 ? 'bg-orange-900/40 border-orange-700/50' : 'glass-panel border-white/5'));
                 
-                // === ЛОГИКА АВАТАРА (ИСПРАВЛЕНИЕ) ===
+                // === ЛОГИКА АВАТАРА ===
                 let avatarHTML;
                 const raw = player.avatar_url;
-                
-                // Проверяем, ссылка ли это (содержит http)
                 const isUrl = raw && (raw.includes('http') || raw.includes('https'));
 
                 if (isUrl) {
-                    // Если ссылка -> ставим картинку
                     avatarHTML = `<img src="${raw}" class="w-9 h-9 rounded-full object-cover border border-white/20 bg-slate-900">`;
                 } else {
-                    // Если нет -> ставим смайлик (или дефолтный 😎)
                     const emoji = raw || '😎';
                     avatarHTML = `<div class="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center text-xl border border-white/10 select-none shadow-inner">${emoji}</div>`;
                 }
+
+                // 🔥 ВАЖНО: ВОТ ЭТА СТРОКА БЫЛА ПРОПУЩЕНА
+                // Определяем ранг перед использованием в HTML
+                const rank = getPlayerRank(player.games_played); 
                 
                 // Собираем строку
                 html += `
                     <div class="p-3 rounded-xl flex items-center justify-between border ${bgClass} transition hover:scale-[1.02]">
-                        <div class="flex items-center gap-3">
-                            <div class="text-sm font-black w-6 text-center text-slate-400">${medal}</div>
+                        <div class="flex items-center gap-3 overflow-hidden">
+                            <div class="text-sm font-black w-6 text-center text-slate-400 shrink-0">${medal}</div>
                             
-                            <!-- Вставляем готовый HTML аватара -->
                             ${avatarHTML}
                             
-                            <div class="font-bold text-white text-sm truncate max-w-[110px]">${player.username}</div>
+                            <div class="flex flex-col overflow-hidden">
+                                <div class="font-bold text-white text-sm truncate max-w-[110px]">${player.username}</div>
+                                <!-- Бейдж статуса -->
+                                <div class="text-[9px] leading-tight opacity-90 mt-0.5">
+                                <span class="${rank.style} px-1.5 py-0.5 rounded-[4px] inline-block border-0 shadow-none font-bold text-[8px] tracking-wide">
+                                        ${rank.title}
+                                </span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="font-mono text-yellow-400 font-bold text-sm tracking-tight">
+                        <div class="font-mono text-yellow-400 font-bold text-sm tracking-tight shrink-0 ml-2">
                             ${player.balance.toLocaleString('ru-RU')}
                         </div>
                     </div>
@@ -634,6 +644,7 @@
                     // Если база ответила, обновляем баланс точно
                     localStorage.setItem('jigu_bal_xl', playerData.balance);
                     updateBalanceUI();
+                    updateRankUI(playerData.games_played || 0);
 
                     // Если в базе есть имя (возможно измененное пользователем), ставим его
                     if (playerData.username) {
@@ -643,6 +654,7 @@
 
                     // === ГЛАВНОЕ: ОТРИСОВКА АВАТАРА ===
                     // Берем из базы, если нет - то из телеграма, если нет - то заглушку
+                    
                     const finalAvatar = playerData.avatar_url || user.photo_url;
                     renderAvatarGlobal(finalAvatar); // Функция из profile.js
                 } else {
@@ -776,6 +788,8 @@
                 if (typeof updateGamesPlayedUI === 'function') {
                     updateGamesPlayedUI(player.games_played || 0);
                 }
+
+                updateRankUI(player.games_played || 0);
 
                 // 🔥 ПРОВЕРЯЕМ НАГРАДЫ
                 await checkReferralRewards(player);
@@ -933,7 +947,82 @@
             }
         }
 
-        
+        // === ФУНКЦИЯ ОПРЕДЕЛЕНИЯ РАНГА ===
+        function getPlayerRank(gamesPlayed) {
+            const count = parseInt(gamesPlayed) || 0;
+
+            // 50k+
+            if (count >= 50000) return { 
+                title: '👑 Император', // Сократил для красоты в мобилке
+                style: 'bg-gradient-to-r from-yellow-600 via-orange-500 to-red-600 text-white border-none shadow-[0_0_10px_rgba(234,179,8,0.6)] animate-pulse' 
+            };
+            // 20k+
+            if (count >= 20000) return { 
+                title: '🧞‍♂️ Джинн', 
+                style: 'bg-gradient-to-r from-purple-600 to-blue-600 text-white border-none shadow-[0_0_10px_rgba(147,51,234,0.5)]' 
+            };
+            // 10k+
+            if (count >= 10000) return { 
+                title: '🦈 Акула', 
+                style: 'bg-red-950 text-red-100 border-red-500 shadow-sm' 
+            };
+            // 5k+
+            if (count >= 5000) return { 
+                title: '🎩 Хайроллер', 
+                style: 'bg-emerald-900 text-emerald-100 border-emerald-500/50' 
+            };
+            // 3k+
+            if (count >= 3000) return { 
+                title: '🥴 Лудоман', 
+                style: 'bg-orange-900 text-orange-100 border-orange-500/50' 
+            };
+            // 1k+
+            if (count >= 1000) return { 
+                title: '🃏 Профи', 
+                style: 'bg-blue-900 text-blue-100 border-blue-500/50' 
+            };
+            // 500+
+            if (count >= 500) return { 
+                title: '🍀 Фартовый', 
+                style: 'bg-cyan-900 text-cyan-100 border-cyan-500/50' 
+            };
+            // 150+
+            if (count >= 150) return { 
+                title: '🏃‍♂️ Активный', 
+                style: 'bg-teal-900 text-teal-100 border-teal-500/30' 
+            };
+            // 50+
+            if (count >= 50) return { 
+                title: '🎲 Посетитель', 
+                style: 'bg-slate-800 text-slate-200 border-slate-600/50' 
+            };
+            
+            // < 50
+            return { 
+                title: '🐣 Новичок', 
+                style: 'bg-slate-800 text-slate-500 border-slate-700/30' 
+            };
+        }
+
+        function updateRankUI(gamesPlayed) {
+            const rank = getPlayerRank(gamesPlayed);
+            
+            // 1. Обновляем Шапку (просто текст)
+            const headerEl = document.getElementById('header-rank');
+            if(headerEl) {
+                headerEl.innerText = rank.title;
+                // Можно добавить цвет, если хочешь:
+                // headerEl.className = "text-[10px] font-bold uppercase tracking-wider " + rank.style.replace('bg-', 'text-').replace('text-white', '');
+            }
+
+            // 2. Обновляем Бейдж в профиле (полный стиль)
+            const profileBadge = document.getElementById('profile-rank-badge');
+            if(profileBadge) {
+                profileBadge.innerText = rank.title;
+                // Сбрасываем старые классы и добавляем базовые + новые из функции
+                profileBadge.className = `px-3 py-1 mt-2 rounded-full text-[10px] font-bold border transition-all duration-300 inline-block shadow-lg ${rank.style}`;
+            }
+        }
 
         // === АНИМАЦИЯ МОНЕТОК (ВИЗУАЛЬНЫЙ ЭФФЕКТ) ===
         // Вызывай spawnCoins() когда игрок получает бонус!
