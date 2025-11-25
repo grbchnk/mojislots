@@ -353,7 +353,7 @@
 
                 <div class="py-2">
                     <span class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-purple-600 drop-shadow-sm">
-                        +20 SPINS
+                        +10 FREE SPINS
                     </span>
                 </div>
 
@@ -392,16 +392,16 @@
                 { id: 8, val: '❤️', payout: 0, weight: 5 }, 
                 
                 // Дорогие символы
-                { id: 7, val: '💍', payout: 20, weight: 18 },  
-                { id: 6, val: '🧸', payout: 10, weight: 28 },  
-                { id: 5, val: '🌹', payout: 5, weight: 38 },
+                { id: 7, val: '💍', payout: 20, weight: 20 },  
+                { id: 6, val: '🧸', payout: 10, weight: 30 },  
+                { id: 5, val: '🌹', payout: 5, weight: 40 },
                 
                 // Дешевые сердца (База)
-                { id: 4, val: '💚', payout: 1, weight: 55 }, 
-                { id: 3, val: '💛', payout: 1, weight: 55 },  
-                { id: 2, val: '💜', payout: 1, weight: 55 },  
-                { id: 1, val: '💙', payout: 1, weight: 55 },  
-                { id: 0, val: '🧡', payout: 1, weight: 55 }
+                { id: 4, val: '💚', payout: 1, weight: 53 }, 
+                { id: 3, val: '💛', payout: 1, weight: 53 },  
+                { id: 2, val: '💜', payout: 1, weight: 53 },  
+                { id: 1, val: '💙', payout: 1, weight: 53 },  
+                { id: 0, val: '🧡', payout: 1, weight: 53 }
             ];
             const BET_VALUES = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
             
@@ -619,7 +619,7 @@
                         setTimeout(() => {
                             // 1. Меняем CSS на очень быструю анимацию (0.2s)
                             // "cubic-bezier(0.2, 0.8, 0.2, 1)" - это резкий "вжух" с мягким концом
-                            this.el.style.transition = 'transform 0.1s cubic-bezier(0.215, 0.610, 0.355, 1.000)';
+                            this.el.style.transition = 'transform 0.03s cubic-bezier(0, 1, 0, 1)';
                             
                             // Transform менять не надо, он уже стоит на translateY(0px) в spin()
                             // Браузер просто ускорит движение к этой точке.
@@ -628,7 +628,7 @@
                             setTimeout(() => {
                                 // Если вдруг анимация не успела, finishSpin всё равно отрисует финал
                                 if(this.targetSymbols) this.finishSpin(this.targetSymbols);
-                            }, 100); 
+                            }, 30); 
                             
                         }, delayMs);
                     }
@@ -1155,6 +1155,7 @@
     </script>
 </body>
 </html>
+
 
 
 
