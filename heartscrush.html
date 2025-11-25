@@ -410,30 +410,34 @@
                 },
                 drop() { this.playTone(100, 'sine', 0.2, 0.1); },
                 pop() { 
+                    // 1. Удар сердца (сразу)
+                    this.vibrate('medium');
+
+                    // 2. Удар сердца (через 150мс - синхронно со вторым звуком)
+                    setTimeout(() => this.vibrate('medium'), 150);
+
                     if(!this.check()) return;
                     
-                    // Функция для создания глубокого "утробного" стука
+                    // Звуковая часть (Bass Thud)
                     const deepThud = (time, startFreq, volume) => {
                         const osc = this.ctx.createOscillator();
                         const gain = this.ctx.createGain();
                         osc.connect(gain);
                         gain.connect(this.ctx.destination);
-                        
-                        osc.type = 'sine'; // Только синусоида для мягкости
-                        
-                        // Питч: Начинаем низко и падаем еще ниже (эффект удара в барабан/грудь)
+                        osc.type = 'sine'; 
                         osc.frequency.setValueAtTime(startFreq, time);
                         osc.frequency.exponentialRampToValueAtTime(startFreq * 0.6, time + 0.15);
-                        
-                        // Громкость:
-                        // Атака чуть медленнее (0.02), чтобы не было "щелчка" в начале
                         gain.gain.setValueAtTime(0, time);
                         gain.gain.linearRampToValueAtTime(volume, time + 0.02);
                         gain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
-                        
                         osc.start(time);
                         osc.stop(time + 0.25);
                     };
+
+                    const now = this.ctx.currentTime;
+                    deepThud(now, 70, 0.8);        // Тук
+                    deepThud(now + 0.15, 90, 0.6); // Тук
+                },
 
                     const now = this.ctx.currentTime;
                     
@@ -913,7 +917,7 @@
                         document.getElementById('ui-win').innerText = sessionWin;
                         this.updateUI();
                         
-                        if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+                        // if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
 
                         winCoords.forEach(c => {
                             const node = this.reels[c.c].el.children[c.r];
