@@ -619,7 +619,7 @@
                         setTimeout(() => {
                             // 1. Меняем CSS на очень быструю анимацию (0.2s)
                             // "cubic-bezier(0.2, 0.8, 0.2, 1)" - это резкий "вжух" с мягким концом
-                            this.el.style.transition = 'transform 0.5s cubic-bezier(0.215, 0.610, 0.355, 1.000)';
+                            this.el.style.transition = 'transform 0.1s cubic-bezier(0.215, 0.610, 0.355, 1.000)';
                             
                             // Transform менять не надо, он уже стоит на translateY(0px) в spin()
                             // Браузер просто ускорит движение к этой точке.
@@ -628,7 +628,7 @@
                             setTimeout(() => {
                                 // Если вдруг анимация не успела, finishSpin всё равно отрисует финал
                                 if(this.targetSymbols) this.finishSpin(this.targetSymbols);
-                            }, 500); 
+                            }, 100); 
                             
                         }, delayMs);
                     }
@@ -1155,5 +1155,6 @@
     </script>
 </body>
 </html>
+
 
 
