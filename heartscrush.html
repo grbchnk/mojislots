@@ -433,21 +433,6 @@
                         osc.start(time);
                         osc.stop(time + 0.25);
                     };
-
-                    const now = this.ctx.currentTime;
-                    deepThud(now, 70, 0.8);        // Тук
-                    deepThud(now + 0.15, 90, 0.6); // Тук
-                },
-
-                    const now = this.ctx.currentTime;
-                    
-                    // Первый удар (LUB) - Более глубокий и громкий
-                    // 70Hz - это настоящий бас
-                    deepThud(now, 70, 0.8);
-                    
-                    // Второй удар (DUB) - Чуть выше и тише (через 0.15 сек)
-                    // 90Hz
-                    deepThud(now + 0.15, 90, 0.6);
                 },
                 bonus() { [400,500,600].forEach((f,i)=>setTimeout(()=>this.playTone(f,'sine',0.4,0.5), i*100)); },
                 heartbeat() { 
@@ -1068,3 +1053,4 @@
     </script>
 </body>
 </html>
+
