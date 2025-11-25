@@ -469,7 +469,7 @@
                     this.resolveSpin = null; // Функция завершения промиса
                 }
                 
-                get SYMBOL_HEIGHT() { return this.el.offsetWidth * 0.8; }
+                get SYMBOL_HEIGHT() { return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--reel-height'));  }
 
                 generateRandomSet(count, isBonusMode = false, biasList = []) {
                     let tempAssets = ASSETS.map(a => {
