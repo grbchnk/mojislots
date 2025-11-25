@@ -186,12 +186,12 @@
         0% { transform: scale(1); filter: brightness(1); }
         
         /* ПЕРВЫЙ УДАР (0.1с - 0.2с) - Просто пульс */
-        20% { transform: scale(1.1); filter: brightness(1.5); }
-        35% { transform: scale(1);  filter: brightness(1);}
+        20% { transform: scale(1.15);  filter: brightness(1.1);}
+        35% { transform: scale(0.9);  filter: brightness(1);}
 
         /* ВТОРОЙ УДАР (0.35с) - Взрыв и исчезновение */
-        50% { transform: scale(1.2); opacity: 1; filter: brightness(1.5); }
-        100% { transform: scale(0.5); opacity: 0; }
+        50% { transform: scale(1.3); opacity: 1; filter: brightness(1.1); }
+        100% { transform: scale(0.5); opacity: 0; filter: brightness(2);}
     }
 
     .symbol-heart-pop {
@@ -445,7 +445,7 @@
                     // 90Hz
                     deepThud(now + 0.15, 90, 0.6);
                 },
-                bonus() { this.playTone(800, 'square', 0.6, 0.1); },
+                bonus() { [400,500,600].forEach((f,i)=>setTimeout(()=>this.playTone(f,'sine',0.4,0.5), i*100)); },
                 heartbeat() { 
                     if(!this.check()) return;
                     // Первый удар (LUB)
