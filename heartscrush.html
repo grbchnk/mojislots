@@ -195,10 +195,29 @@
     }
 
     .symbol-heart-pop {
-        /* Длительность 0.5с идеально ложится на двойной звук */
-        animation: heartPopDeath 0.5s ease-out forwards !important;
-        z-index: 50;
+            /* Длительность 0.5с идеально ложится на двойной звук */
+            animation: heartPopDeath 0.5s ease-out forwards !important;
+            z-index: 50;
+        }
+    
+            .mult-low { color: #db2777; } /* x1-x2 Розовый */
+    .mult-med { color: #ea580c; text-shadow: 0 0 5px rgba(234, 88, 12, 0.4); } /* x4-x8 Оранжевый */
+    .mult-high { color: #dc2626; text-shadow: 0 0 10px rgba(220, 38, 38, 0.6); font-size: 1.1em; } /* x16-x32 Красный */
+    .mult-max { 
+        background: linear-gradient(to right, #9333ea, #db2777, #ea580c); 
+        -webkit-background-clip: text; 
+        color: transparent; 
+        text-shadow: 0 0 15px rgba(147, 51, 234, 0.5);
+        font-size: 1.3em;
+    } /* x64+ Эпический градиент */
+    
+    /* Анимация финального удара */
+    @keyframes winBoom {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.5); color: #16a34a; } /* Зеленый всплеск */
+        100% { transform: scale(1); }
     }
+    .win-boom { animation: winBoom 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
 
 </style>
 </head>
@@ -229,9 +248,10 @@
                 <!-- ID для анимации обновления -->
                 <div class="text-2xl balance-val transition-all duration-300" id="ui-balance">...</div>
             </div>
-            <div class="glass-panel px-4 py-2 flex flex-col items-center justify-center h-16">
+            <div class="glass-panel px-4 py-2 flex flex-col items-center justify-center h-16 w-full">
                 <div class="text-xs font-bold text-pink-700 uppercase opacity-70">Выигрыш</div>
-                <div class="text-2xl balance-val text-purple-600" id="ui-win">0</div>
+                <!-- Сюда будем писать: 100 ×4 -->
+                <div class="text-2xl font-black text-slate-800 transition-all duration-200" id="ui-win">0</div>
             </div>
         </div>
 
@@ -366,31 +386,48 @@
 
             // === GAME ASSETS ===
             const ASSETS = [
+                // id 9 - пустота
                 { id: 9, val: '2', payout: 0, weight: 0 },   
-                { id: 8, val: '❤️', payout: 0, weight: 8 }, 
-                { id: 7, val: '💍', payout: 200, weight: 15 }, 
-                { id: 6, val: '🧸', payout: 60, weight: 25 },  
-                { id: 5, val: '🌹', payout: 25, weight: 35 }, 
-                { id: 4, val: '💚', payout: 10, weight: 50 }, 
-                { id: 3, val: '💛', payout: 10, weight: 50 },  
-                { id: 2, val: '💜', payout: 10, weight: 50 },  
-                { id: 1, val: '💙', payout: 10, weight: 50 },  
-                { id: 0, val: '🧡', payout: 10, weight: 50 }
+                // id 8 - скаттер (сердце-бонус)
+                { id: 8, val: '❤️', payout: 0, weight: 7 }, 
+                
+                // Дорогие символы
+                { id: 7, val: '💍', payout: 20, weight: 15 },  
+                { id: 6, val: '🧸', payout: 10, weight: 25 },  
+                { id: 5, val: '🌹', payout: 5, weight: 35 },
+                
+                // Дешевые сердца (База)
+                { id: 4, val: '💚', payout: 1, weight: 52 }, 
+                { id: 3, val: '💛', payout: 1, weight: 52 },  
+                { id: 2, val: '💜', payout: 1, weight: 52 },  
+                { id: 1, val: '💙', payout: 1, weight: 52 },  
+                { id: 0, val: '🧡', payout: 1, weight: 52 }
             ];
             const BET_VALUES = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
             
             const AudioSys = {
                 ctx: new (window.AudioContext || window.webkitAudioContext)(),
                 muted: localStorage.getItem('moji_sound') === 'false',
+                
                 check() {
                     if (this.muted) return false;
                     if (this.ctx.state === 'suspended') this.ctx.resume();
                     return true;
                 },
+                
                 toggle() {
                     this.muted = !this.muted;
                     localStorage.setItem('moji_sound', !this.muted); return this.muted;
                 },
+
+                // === ВОТ ЭТОЙ ФУНКЦИИ НЕ ХВАТАЛО ===
+                vibrate(type) {
+                     // Проверяем, есть ли Telegram API, чтобы не было ошибок в обычном браузере
+                     if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+                        window.Telegram.WebApp.HapticFeedback.impactOccurred(type);
+                     }
+                },
+
                 playTone(f, t, d, v=0.1) {
                     if(!this.check()) return;
                     const o=this.ctx.createOscillator(), g=this.ctx.createGain();
@@ -399,26 +436,24 @@
                     g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime+d);
                     o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(this.ctx.currentTime+d);
                 },
+                
                 spin() { 
                     if (!this.check()) return;
-                    
-                    // Используем ноты G3 (196Hz), B3 (247Hz), D4 (294Hz) - Соль мажор
-                    // Увеличили длительность (0.15), чтобы звук был тягучим, а не отрывистым
                     this.playTone(196, 'sine', 0.15, 0.15); 
                     setTimeout(() => this.playTone(247, 'sine', 0.15, 0.15), 60); 
                     setTimeout(() => this.playTone(294, 'sine', 0.2, 0.15), 120); 
                 },
+                
                 drop() { this.playTone(100, 'sine', 0.2, 0.1); },
+                
                 pop() { 
-                    // 1. Удар сердца (сразу)
+                    // 1. Вибрация (теперь функция vibrate существует)
                     this.vibrate('medium');
-
-                    // 2. Удар сердца (через 150мс - синхронно со вторым звуком)
                     setTimeout(() => this.vibrate('medium'), 150);
 
                     if(!this.check()) return;
                     
-                    // Звуковая часть (Bass Thud)
+                    // Звуковая часть (глухой удар)
                     const deepThud = (time, startFreq, volume) => {
                         const osc = this.ctx.createOscillator();
                         const gain = this.ctx.createGain();
@@ -433,16 +468,22 @@
                         osc.start(time);
                         osc.stop(time + 0.25);
                     };
+
+                    const now = this.ctx.currentTime;
+                    deepThud(now, 70, 0.8);        
+                    deepThud(now + 0.15, 90, 0.6); 
                 },
+
                 bonus() { [400,500,600].forEach((f,i)=>setTimeout(()=>this.playTone(f,'sine',0.4,0.5), i*100)); },
+                
                 heartbeat() { 
                     if(!this.check()) return;
-                    // Первый удар (LUB)
                     this.playTone(100, 'sine', 0.15, 0.5); 
-                    // Второй удар через паузу (DUB)
                     setTimeout(() => this.playTone(80, 'sine', 0.15, 0.4), 200);
                 },
+                
                 win() { [400,500,600].forEach((f,i)=>setTimeout(()=>this.playTone(f,'sine',0.4,0.1), i*100)); },
+                
                 scatterDrop() { 
                     this.playTone(1200, 'sine', 0.3, 0.15); 
                     setTimeout(() => this.playTone(1800, 'sine', 0.4, 0.1), 50);
@@ -454,8 +495,9 @@
                     this.el = el;
                     this.index = index;
                     this.currentSymbols = [];
-                    this.spinTimer = null;   // Таймер вращения
-                    this.resolveSpin = null; // Функция завершения промиса
+                    this.spinTimer = null;
+                    this.resolveSpin = null;
+                    this.targetSymbols = null; // Храним то, что должно выпасть
                 }
                 
                 get SYMBOL_HEIGHT() { return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--reel-height'));  }
@@ -511,23 +553,17 @@
                     }
                 }
 
-                // Обычный спин
                 spin(finalSymbols, duration, isBonusMode) {
+                    this.targetSymbols = finalSymbols; // Сохраняем цель для turboStop
+                    
                     return new Promise(resolve => {
                         this.resolveSpin = resolve;
                         
-                        // --- НАЧАЛО ИСПРАВЛЕНИЯ ---
-                        // Мы увеличиваем количество "пролетающих" символов для каждой следующей колонки.
-                        // Reel 0 (первая): пролетит ~12 символов за 600мс
-                        // Reel 5 (последняя): пролетит ~32 символа за 1350мс
-                        // Скорость (символов в секунду) останется примерно одинаковой визуально.
                         const baseSpeed = 12; 
-                        const extraPerReel = 4; // Добавляем по 4 символа на каждый шаг индекса
+                        const extraPerReel = 4;
                         const fillerCount = baseSpeed + (this.index * extraPerReel);
                         
                         const filler = this.generateRandomSet(fillerCount, isBonusMode);
-                        // --- КОНЕЦ ИСПРАВЛЕНИЯ ---
-
                         const fullStrip = [...finalSymbols, ...filler, ...this.currentSymbols];
                         
                         this.el.innerHTML = '';
@@ -543,14 +579,11 @@
                         const h = this.SYMBOL_HEIGHT;
                         const startY = -(moveCount * h);
 
-                        // Сброс позиции без анимации
                         this.el.style.transition = 'none';
                         this.el.style.transform = `translateY(${startY}px)`;
-                        
-                        // Принудительная перерисовка (Force Reflow)
                         this.el.offsetHeight; 
 
-                        // Запуск плавной анимации к 0
+                        // Обычное вращение
                         this.el.style.transition = `transform ${duration}ms cubic-bezier(0.45, 0.05, 0.55, 0.95)`;
                         this.el.style.transform = `translateY(0px)`;
 
@@ -560,7 +593,6 @@
                     });
                 }
 
-                // Вспомогательная функция завершения
                 finishSpin(finalSymbols) {
                     this.render(finalSymbols);
                     this.el.style.transition = 'none';
@@ -571,17 +603,34 @@
                     else AudioSys.drop();
 
                     if(this.resolveSpin) {
-                        this.resolveSpin(); // Сообщаем машине, что мы закончили
+                        this.resolveSpin(); 
                         this.resolveSpin = null;
                     }
+                    this.spinTimer = null;
                 }
 
-                // Мгновенная остановка
-                stopNow(finalSymbols) {
+                // === НОВЫЙ МЕТОД ПЛАВНОГО СТОПА ===
+                turboStop(delayMs) {
                     if (this.spinTimer) {
-                        clearTimeout(this.spinTimer); // Отменяем таймер долгого вращения
+                        clearTimeout(this.spinTimer); // Отменяем долгий таймер
                         this.spinTimer = null;
-                        this.finishSpin(finalSymbols); // Сразу рисуем результат
+
+                        // Делаем небольшую задержку перед рывком (для эффекта лесенки)
+                        setTimeout(() => {
+                            // 1. Меняем CSS на очень быструю анимацию (0.2s)
+                            // "cubic-bezier(0.2, 0.8, 0.2, 1)" - это резкий "вжух" с мягким концом
+                            this.el.style.transition = 'transform 0.5s cubic-bezier(0.215, 0.610, 0.355, 1.000)';
+                            
+                            // Transform менять не надо, он уже стоит на translateY(0px) в spin()
+                            // Браузер просто ускорит движение к этой точке.
+
+                            // 2. Через 0.2s (время анимации) завершаем всё официально
+                            setTimeout(() => {
+                                // Если вдруг анимация не успела, finishSpin всё равно отрисует финал
+                                if(this.targetSymbols) this.finishSpin(this.targetSymbols);
+                            }, 500); 
+                            
+                        }, delayMs);
                     }
                 }
             }
@@ -811,7 +860,7 @@
                             confetti({ particleCount: 100, spread: 60, origin: { y: 0.7 }, colors: ['#ffd700', '#ec4899'] });
                     }
                     
-                    this.freeSpins += 20;
+                    this.freeSpins += 10;
                     document.getElementById('fs-count').innerText = this.freeSpins;
                     await new Promise(r => setTimeout(r, 1000));
                     }
@@ -853,66 +902,82 @@
                     }
                 }
 
+                getMultClass(m) {
+                    if (m >= 64) return 'mult-max';
+                    if (m >= 16) return 'mult-high';
+                    if (m >= 4) return 'mult-med';
+                    return 'mult-low';
+                }
+
                 async processCascades(sessionWin, roundHistory = {}) {
                     let safety = 0;
-                    
+                    let rawSessionWin = 0;
+                    let currentMult = 1;
+                    let cascadeCount = 0; // Считаем количество взрывов
+
+                    const uiWinEl = document.getElementById('ui-win');
+
                     while(safety++ < 20) {
-                        // Получаем детали выигрыша текущего этапа
+                        // 1. Считаем выигрыш на текущем поле
                         const { winAmount, winCoords, winDetails } = this.calculateWins(this.currentGrid);
                         
+                        // Если выигрышей нет - прерываем цикл каскадов
                         if (winAmount === 0) break;
 
-                        // --- ОБНОВЛЕНИЕ ИСТОРИИ И СТАТУСА ---
+                        // Увеличиваем счетчик каскадов, так как взрыв есть
+                        cascadeCount++;
+
+                        // 2. Накапливаем "сырой" выигрыш
+                        rawSessionWin += winAmount;
+
+                        // 3. Обновляем МНОЖИТЕЛЬ ПО НОВОЙ ЛОГИКЕ
+                        // 1-й взрыв: x1 (без изменений)
+                        // 2-й взрыв: x2
+                        // 3-й взрыв: x4 (далее удваиваем)
+                        if (cascadeCount === 1) {
+                            currentMult = 1;
+                        } else if (cascadeCount === 2) {
+                            currentMult = 2;
+                        } else {
+                            currentMult *= 2;
+                            if(currentMult > 128) currentMult = 128; // Лимит
+                        }
+
+                        // 4. Обновляем UI
+                        // Показываем "xN" только если множитель больше 1 (начиная со 2-го взрыва)
+                        const multHtml = currentMult > 1 
+                            ? ` <span class="${this.getMultClass(currentMult)}">×${currentMult}</span>` 
+                            : '';
+                        
+                        uiWinEl.innerHTML = `${rawSessionWin}${multHtml}`;
+                        
+                        // Эффект удара по тексту
+                        uiWinEl.style.transform = "scale(1.2)";
+                        setTimeout(() => uiWinEl.style.transform = "scale(1)", 150);
+
+                        // 5. Логи и статус бар
                         if (winDetails) {
-                            // 1. Обновляем математику (суммируем количество)
                             winDetails.forEach(d => {
                                 if (!roundHistory[d.symbol]) roundHistory[d.symbol] = 0;
                                 roundHistory[d.symbol] += d.count;
                             });
-
-                            // 2. ОБНОВЛЕНИЕ СТАТУСА В РЕАЛЬНОМ ВРЕМЕНИ (ПРЯМО ЗДЕСЬ)
-                            const playedSymbols = Object.keys(roundHistory);
-                            // Формируем строку вида: "💛x8 💍x12"
-                            const summary = playedSymbols.map(sym => `${sym}×${roundHistory[sym]}`).join('  ');
-                            
-                            const statusEl = document.getElementById('status-text');
-                            statusEl.innerText = `${summary}`;
-                            statusEl.classList.add('text-rose-600');
-                            
-                            // Эффект пульсации текста при обновлении
-                            statusEl.style.transform = "scale(1.1)";
-                            statusEl.style.transition = "transform 0.1s";
-                            setTimeout(() => statusEl.style.transform = "scale(1)", 100);
-                        }
-                        // ----------------------------------------
-                        
-                        sessionWin += winAmount;
-                        this.balance += winAmount;
-                        this.saveBalanceToDB(this.balance, false);
-
-                        if (document.getElementById('game-wrapper').classList.contains('bonus-mode-bg')) {
-                            this.bonusTotalWin += winAmount;
-                            document.getElementById('fs-total-win').innerText = this.bonusTotalWin;
-                            const winLabel = document.getElementById('fs-total-win');
-                            winLabel.style.transform = "scale(1.4)";
-                            winLabel.style.transition = "transform 0.1s";
-                            setTimeout(() => winLabel.style.transform = "scale(1)", 100);
+                            const summary = Object.keys(roundHistory).map(sym => `${sym}`).join(' ');
+                            // Если множитель 1, не пишем "КОМБО x1", пишем просто символы
+                            const comboText = currentMult > 1 ? ` | КОМБО ×${currentMult}` : '';
+                            document.getElementById('status-text').innerText = `${summary}${comboText}`;
                         }
 
-                        document.getElementById('ui-win').innerText = sessionWin;
-                        this.updateUI();
-                        
-                        // if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-
+                        // 6. Визуализация взрыва символов
                         winCoords.forEach(c => {
                             const node = this.reels[c.c].el.children[c.r];
                             if(node) node.classList.add('symbol-heart-pop');
                         });
-
                         AudioSys.pop(); 
+                        
+                        // Ждем пока анимация взрыва пройдет
                         await new Promise(r => setTimeout(r, 500));
                         
-                        // Логика падения новых символов
+                        // 7. Падение новых символов (Механика каскада)
                         let allSurvivorIds = [];
                         this.currentGrid.forEach((col, colIdx) => {
                             col.forEach((s, rowIdx) => {
@@ -947,6 +1012,38 @@
 
                         AudioSys.drop();
                         await new Promise(r => setTimeout(r, 450)); 
+                    }
+
+                    // === ФИНАЛ: ЗАЧИСЛЕНИЕ ДЕНЕГ ===
+                    if (rawSessionWin > 0) {
+                        // НОВАЯ ЛОГИКА ПАУЗЫ:
+                        // Если взрывов было > 1 (сработал множитель), делаем паузу для осознания
+                        // Если взрыв был 1 (x1), деньги зачисляем сразу
+                        if (cascadeCount > 1) {
+                            await new Promise(r => setTimeout(r, 600));
+                        }
+
+                        const finalPayout = rawSessionWin * currentMult;
+
+                        // Эффект победы
+                        uiWinEl.innerHTML = `<span class="text-green-600 font-black">${finalPayout}</span>`;
+                        uiWinEl.classList.add('win-boom');
+                        AudioSys.win(); 
+
+                        // Реальное зачисление
+                        this.balance += finalPayout;
+                        this.saveBalanceToDB(this.balance, false);
+                        
+                        if (document.getElementById('game-wrapper').classList.contains('bonus-mode-bg')) {
+                            this.bonusTotalWin += finalPayout;
+                            document.getElementById('fs-total-win').innerText = this.bonusTotalWin;
+                        }
+
+                        document.getElementById('ui-balance').innerText = this.balance;
+
+                        // Ждем окончания анимации цифр
+                        await new Promise(r => setTimeout(r, 500));
+                        uiWinEl.classList.remove('win-boom');
                     }
                 }
 
@@ -992,10 +1089,15 @@
                 }
 
                 forceStop() {
-                    if(this.stopLocked) return; // Защита от двойного клика по стопу
+                    if(this.stopLocked) return; 
                     this.stopLocked = true;
-                    // Пробегаем по всем барабанам и говорим "Стоп!"
-                    this.reels.forEach((r, i) => r.stopNow(this.currentGrid[i]));
+                    
+                    // Эффект "Zipper": барабаны останавливаются не все сразу,
+                    // а с шагом в 60мс (0ms, 60ms, 120ms, 180ms...)
+                    // Это создает ощущение скорости, но убирает "дерганость".
+                    this.reels.forEach((r, i) => {
+                        r.turboStop(i * 60); 
+                    });
                 }
 
                 updateUI() {
@@ -1053,4 +1155,5 @@
     </script>
 </body>
 </html>
+
 
